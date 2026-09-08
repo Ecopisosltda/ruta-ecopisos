@@ -14,7 +14,7 @@
     --bg:#F1EDE6; --surface:#FFFFFF; --surface-2:#EAE4D9; --line:#DAD3C6;
     --ink:#211D18; --muted:#6B655C; --wood:#C9793F; --wood-ink:#2B1706; --brand-green:#3E7A2E;
     --pend:#8B8681; --enruta:#3E7CA6; --hecho:#3E7A2E; --problema:#B23B33; --anulado:#9C978F;
-    --pill-retiro:#767676;
+    --pill-retiro:#767676; --atrasado:#B5680E;
     --radius:10px;
   }
   @media (prefers-color-scheme: dark){
@@ -22,14 +22,14 @@
       --bg:#17181A; --surface:#202225; --surface-2:#2A2D30; --line:#3A3D40;
       --ink:#EDE9E1; --muted:#9A968D; --wood:#D98A4C; --wood-ink:#1B1204; --brand-green:#63A855;
       --pend:#948F87; --enruta:#5B9BD1; --hecho:#63A855; --problema:#D1615A; --anulado:#6B665F;
-      --pill-retiro:#8A8A8A;
+      --pill-retiro:#8A8A8A; --atrasado:#D98A32;
     }
   }
   :root[data-theme="dark"]{
     --bg:#17181A; --surface:#202225; --surface-2:#2A2D30; --line:#3A3D40;
     --ink:#EDE9E1; --muted:#9A968D; --wood:#D98A4C; --wood-ink:#1B1204; --brand-green:#63A855;
     --pend:#948F87; --enruta:#5B9BD1; --hecho:#63A855; --problema:#D1615A; --anulado:#6B665F;
-    --pill-retiro:#8A8A8A;
+    --pill-retiro:#8A8A8A; --atrasado:#D98A32;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -133,10 +133,11 @@
   .pill-entrega{background:var(--wood); color:var(--wood-ink);}
   .estado-badge{font-size:11.5px; font-weight:700; padding:3px 8px; border-radius:20px; color:#fff;}
   .est-Pendiente{background:var(--pend);}
-  .est-En\ Ruta{background:var(--enruta);}
+  .est-En-Ruta{background:var(--enruta);}
   .est-Realizado{background:var(--hecho);}
-  .est-Con\ Problema{background:var(--problema);}
+  .est-Con-Problema{background:var(--problema);}
   .est-Anulado{background:var(--anulado); text-decoration:line-through;}
+  .badge-atrasado{background:var(--atrasado); color:#fff; text-transform:uppercase; font-weight:800; letter-spacing:.03em; font-size:11px; padding:3px 8px; border-radius:20px;}
   .stop-title{font-weight:700; font-size:15px;}
   .stop-meta{font-size:13px; color:var(--muted); line-height:1.5;}
   .stop-meta a{color:var(--enruta); text-decoration:none; font-weight:600;}
@@ -271,14 +272,17 @@
     distribuidores: [],
     conductores: [],
     pedidos: [],
+    visitas: [],
     role: null,        // {type:'despachador'} | {type:'conductor', id, nombre}
     tab: 'nuevo',
     rutaFecha: todayStr(),
     histMes: todayStr().slice(0,7),
+    histVisitasMes: todayStr().slice(0,7),
     seededDist:false, seededCond:false,
     lastPedidoNumero: null,
     editando: null,
     editandoDist: null,
+    editandoVisita: null,
   };
 
   function loadRole(){
@@ -336,6 +340,18 @@
     return numero;
   }
   function pedIdLabel(numero){ return 'PED-'+String(numero).padStart(4,'0'); }
+  async function nextNumeroVisita(){
+    const ref = db.doc('meta/counterVisitas');
+    const numero = await firebase.firestore().runTransaction(async (tx)=>{
+      const snap = await tx.get(ref);
+      const current = (snap.exists && typeof snap.data().value==='number') ? snap.data().value : 0;
+      const next = current+1;
+      tx.set(ref, {value: next});
+      return next;
+    });
+    return numero;
+  }
+  function visIdLabel(numero){ return 'VIS-'+String(numero).padStart(4,'0'); }
 
   // ---------- writes ----------
   async function crearPedido(data){
@@ -513,11 +529,49 @@
         : `<button class="icon-btn" title="Anular pedido" onclick="AppRuta.anular('${p.id}')">✕</button>`}
     </div>`;
   }
+  function accionesVisitaHtml(v){
+    if(v.estado==='Anulado') return '';
+    if(estadoFinalizado(v.estado)){
+      return `<button class="icon-btn" title="Anular visita" onclick="AppRuta.anularVisitaUI('${v.id}')">✕</button>`;
+    }
+    return `<div class="row">
+      <button class="icon-btn" title="Editar" onclick="AppRuta.editarVisita('${v.id}')">✎</button>
+      ${v.estado==='Pendiente'
+        ? `<button class="icon-btn" title="Eliminar" onclick="AppRuta.eliminarVisitaUI('${v.id}')">🗑</button>`
+        : `<button class="icon-btn" title="Anular visita" onclick="AppRuta.anularVisitaUI('${v.id}')">✕</button>`}
+    </div>`;
+  }
   async function actualizarPedido(pedidoId, data){
     await db.doc('pedidos/'+pedidoId).update(data);
   }
   async function eliminarPedidoDefinitivo(pedidoId){
     await db.doc('pedidos/'+pedidoId).delete();
+  }
+  // ---------- visitas técnicas ----------
+  async function crearVisita(data){
+    const numero = await nextNumeroVisita();
+    await db.collection('visitas').add(Object.assign({
+      numero,
+      estado: 'Pendiente',
+      observaciones: '',
+      creadoEn: new Date().toISOString(),
+    }, data));
+    return numero;
+  }
+  async function actualizarVisita(id, data){
+    await db.doc('visitas/'+id).update(data);
+  }
+  async function marcarEstadoVisita(id, estado){
+    await db.doc('visitas/'+id).update({estado, actualizadoEn: new Date().toISOString()});
+  }
+  async function anularVisita(id){
+    await db.doc('visitas/'+id).update({estado: 'Anulado'});
+  }
+  async function eliminarVisitaDefinitiva(id){
+    await db.doc('visitas/'+id).delete();
+  }
+  function visitaCompletamenteFinalizada(v){
+    return estadoFinalizado(v.estado);
   }
   async function agregarDistribuidor(d){
     await db.collection('distribuidores').add(d);
@@ -687,6 +741,45 @@
       </div>`;
       return;
     }
+    if(state.editandoVisita){
+      const v = byId(state.visitas, state.editandoVisita);
+      if(!v){ holder.innerHTML=''; state.editandoVisita=null; return; }
+      const condOpts = `<option value="">Sin asignar</option>` + state.conductores.map(c=>`<option value="${esc(c.id)}" ${c.id===v.conductorId?'selected':''}>${esc(c.nombre)}</option>`).join('');
+      holder.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this) AppRuta.cerrarEditorVisita()">
+        <div class="modal">
+          <h3>Editar ${visIdLabel(v.numero)}</h3>
+          <form id="form-editar-visita" onsubmit="return AppRuta.guardarEdicionVisita(event)">
+            <div class="field-row">
+              <div><label>Fecha</label><input type="date" name="fecha" value="${esc(v.fecha)}" required></div>
+              <div><label>Hora</label><input type="time" name="hora" value="${esc(v.hora||'')}"></div>
+            </div>
+            <div class="field-row">
+              <div><label>Nombre</label><input type="text" name="nombre" value="${esc(v.nombre)}" required></div>
+              <div><label>Dirección</label><input type="text" name="direccion" value="${esc(v.direccion)}" required></div>
+            </div>
+            <div class="field-row">
+              <div><label>Producto / Servicio</label><input type="text" name="productoServicio" value="${esc(v.productoServicio)}"></div>
+              <div><label>Pago</label><select name="pago">
+                <option value="Pagada" ${v.pago==='Pagada'?'selected':''}>Pagada</option>
+                <option value="Por cobrar" ${v.pago==='Por cobrar'?'selected':''}>Por cobrar</option>
+              </select></div>
+            </div>
+            <div class="field-row">
+              <div><label>Conductor asignado</label><select name="conductorId">${condOpts}</select></div>
+              <div></div>
+            </div>
+            <div class="field-row">
+              <div style="grid-column:1/-1;"><label>Observaciones</label><textarea name="observaciones">${esc(v.observaciones)}</textarea></div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" onclick="AppRuta.cerrarEditorVisita()">Cancelar</button>
+              <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+      return;
+    }
     if(!state.editando){ holder.innerHTML=''; return; }
     const p = byId(state.pedidos, state.editando);
     if(!p){ holder.innerHTML=''; state.editando=null; return; }
@@ -761,7 +854,7 @@
   }
 
   function renderDespachador(root){
-    const tabs = [['nuevo','Nuevo pedido'],['ruta','Ruta de hoy'],['hist','Historial'],['dist','Distribuidores'],['cond','Conductores']];
+    const tabs = [['nuevo','Nuevo pedido'],['ruta','Ruta de hoy'],['hist','Historial'],['visitas','Visitas técnicas'],['dist','Distribuidores'],['cond','Conductores']];
     root.innerHTML = `<div class="app">
       ${topbar('Despachador')}
       <div class="tabs">${tabs.map(([k,l])=>`<div class="tab ${state.tab===k?'active':''}" onclick="AppRuta.tab('${k}')">${l}</div>`).join('')}</div>
@@ -771,6 +864,7 @@
     if(state.tab==='nuevo') panel.innerHTML = viewNuevoPedido();
     else if(state.tab==='ruta') panel.innerHTML = viewRutaHoy();
     else if(state.tab==='hist') panel.innerHTML = viewHistorial();
+    else if(state.tab==='visitas') panel.innerHTML = viewVisitas();
     else if(state.tab==='dist') panel.innerHTML = viewDistribuidores();
     else panel.innerHTML = viewConductores();
   }
@@ -876,7 +970,7 @@
     const contacto = esRetiro ? distContacto(p.distribuidorId) : p.cliente;
     const tel = esRetiro ? distTelefono(p.distribuidorId) : p.telefonoCliente;
     const doc = esRetiro ? p.documentoRetiro : p.documentoDespacho;
-    const estadoCls = 'est-'+leg.estado.replace(' ','\\ ');
+    const estadoCls = 'est-'+leg.estado.replace(/\s+/g,'-');
     const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${comunaColor(comuna)};margin-right:5px;"></span>`;
     return `<div class="stop" style="${invalido?'border-color:var(--problema);':''}">
       <div class="tag">${idx+1}</div>
@@ -884,7 +978,7 @@
         <div class="stop-top">
           <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>
           <span class="estado-badge ${estadoCls}">${esc(leg.estado)}</span>
-          ${leg.atrasado?'<span class="estado-badge est-Con\\ Problema">⏰ Atrasado (día anterior)</span>':''}
+          ${leg.atrasado?'<span class="badge-atrasado">⏰ Atrasado (día anterior)</span>':''}
           ${invalido?'<span class="estado-badge est-Con\\ Problema">⚠ orden invertido</span>':''}
         </div>
         <div class="stop-title">${esc(punto)} · PED-${String(p.numero).padStart(4,'0')}</div>
@@ -912,7 +1006,7 @@
       totales[p.estadoEntrega] = (totales[p.estadoEntrega]||0)+1;
     });
     const resumen = Object.keys(totales).filter(k=>totales[k]>0)
-      .map(k=>`<span class="estado-badge est-${k.replace(' ','\\ ')}" style="margin-right:6px;">${totales[k]} ${k}</span>`).join('');
+      .map(k=>`<span class="estado-badge est-${k.replace(/\s+/g,'-')}" style="margin-right:6px;">${totales[k]} ${k}</span>`).join('');
     const filas = delMes.map(p=>`
       <tr>
         <td>PED-${String(p.numero).padStart(4,'0')}</td>
@@ -921,8 +1015,8 @@
         <td>${esc(distNombre(p.distribuidorId))}</td>
         <td>${esc(p.documentoDespacho||'')}</td>
         <td>${esc(condNombre(p.conductorId))}</td>
-        <td><span class="estado-badge est-${p.estadoRetiro.replace(' ','\\ ')}">${esc(p.estadoRetiro)}</span></td>
-        <td><span class="estado-badge est-${p.estadoEntrega.replace(' ','\\ ')}">${esc(p.estadoEntrega)}</span></td>
+        <td><span class="estado-badge est-${p.estadoRetiro.replace(/\s+/g,'-')}">${esc(p.estadoRetiro)}</span></td>
+        <td><span class="estado-badge est-${p.estadoEntrega.replace(/\s+/g,'-')}">${esc(p.estadoEntrega)}</span></td>
       </tr>`).join('');
     return `
       <div class="ruta-controls">
@@ -937,6 +1031,66 @@
             <th style="padding:10px 12px;">Estado retiro</th><th style="padding:10px 12px;">Estado entrega</th>
           </tr></thead>
           <tbody>${filas || '<tr><td colspan="8" style="padding:16px;color:var(--muted);">Sin pedidos en este mes.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function viewVisitas(){
+    const condOpts = `<option value="">Sin asignar</option>` + state.conductores.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
+    const mes = state.histVisitasMes;
+    const delMes = state.visitas.filter(v=>(v.fecha||'').startsWith(mes)).sort((a,b)=>{
+      if(a.fecha!==b.fecha) return a.fecha.localeCompare(b.fecha);
+      return (a.hora||'').localeCompare(b.hora||'');
+    });
+    const filas = delMes.map(v=>`
+      <tr>
+        <td>${visIdLabel(v.numero)}</td>
+        <td>${esc(v.fecha)}</td>
+        <td>${esc(v.hora||'')}</td>
+        <td>${esc(v.nombre)}</td>
+        <td>${esc(v.direccion)}</td>
+        <td>${esc(v.productoServicio||'')}</td>
+        <td>${esc(v.pago||'')}</td>
+        <td>${esc(condNombre(v.conductorId))}</td>
+        <td><span class="estado-badge est-${(v.estado||'').replace(/\s+/g,'-')}">${esc(v.estado)}</span></td>
+        <td>${accionesVisitaHtml(v)}</td>
+      </tr>`).join('');
+    return `<div class="card" style="margin-bottom:18px;">
+        <form id="form-visita" onsubmit="return AppRuta.submitVisita(event)">
+          <div class="field-row">
+            <div><label>Fecha</label><input type="date" name="fecha" value="${todayStr()}" required></div>
+            <div><label>Hora</label><input type="time" name="hora"></div>
+          </div>
+          <div class="field-row">
+            <div><label>Nombre</label><input type="text" name="nombre" required placeholder="Nombre del cliente"></div>
+            <div><label>Dirección</label><input type="text" name="direccion" required></div>
+          </div>
+          <div class="field-row">
+            <div><label>Producto / Servicio</label><input type="text" name="productoServicio" placeholder="Ej: cotización piso flotante"></div>
+            <div><label>Pago</label><select name="pago"><option value="Pagada">Pagada</option><option value="Por cobrar">Por cobrar</option></select></div>
+          </div>
+          <div class="field-row">
+            <div><label>Conductor asignado</label><select name="conductorId">${condOpts}</select></div>
+            <div></div>
+          </div>
+          <div class="field-row">
+            <div style="grid-column:1/-1;"><label>Observaciones</label><textarea name="observaciones"></textarea></div>
+          </div>
+          <button class="btn btn-primary" type="submit">Crear visita</button>
+          <div id="confirm-visita"></div>
+        </form>
+      </div>
+      <div class="ruta-controls">
+        <div><label>Mes</label><input type="month" value="${mes}" onchange="AppRuta.setMesVisitas(this.value)"></div>
+      </div>
+      <div class="card" style="overflow-x:auto; padding:0;">
+        <table style="width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap;">
+          <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
+            <th style="padding:10px 12px;">ID</th><th style="padding:10px 12px;">Fecha</th><th style="padding:10px 12px;">Hora</th>
+            <th style="padding:10px 12px;">Nombre</th><th style="padding:10px 12px;">Dirección</th><th style="padding:10px 12px;">Producto/Servicio</th>
+            <th style="padding:10px 12px;">Pago</th><th style="padding:10px 12px;">Conductor</th><th style="padding:10px 12px;">Estado</th><th style="padding:10px 12px;"></th>
+          </tr></thead>
+          <tbody>${filas || '<tr><td colspan="10" style="padding:16px;color:var(--muted);">Sin visitas en este mes.</td></tr>'}</tbody>
         </table>
       </div>`;
   }
@@ -996,17 +1150,70 @@
       <div class="card">${rows || '<div class="empty">Sin conductores.</div>'}</div>`;
   }
 
+  function visitasVisiblesHoy(conductorId, fecha){
+    const esHoy = fecha === todayStr();
+    const list = [];
+    state.visitas.forEach(v=>{
+      if((v.conductorId||'')!==conductorId) return;
+      if(v.estado==='Anulado') return;
+      const mismaFecha = v.fecha === fecha;
+      const atrasada = esHoy && v.fecha < fecha && legNoFinalizado(v.estado);
+      if(mismaFecha || atrasada) list.push(Object.assign({}, v, {atrasado: atrasada && !mismaFecha}));
+    });
+    list.sort((a,b)=>{
+      if(a.atrasado!==b.atrasado) return a.atrasado ? -1 : 1;
+      return (a.hora||'').localeCompare(b.hora||'');
+    });
+    return list;
+  }
   function renderConductor(root){
     const fecha = todayStr();
     const legs = legsForConductorDay(state.role.id, fecha).filter(l=>l.estado!=='Anulado');
+    const visitas = visitasVisiblesHoy(state.role.id, fecha);
     root.innerHTML = `<div class="app">
       ${topbar(state.role.nombre)}
-      <div class="drv-head"><h2>Tu ruta de hoy</h2><div class="sub">${fmtFechaCorta(fecha)} · ${legs.length} parada(s)</div></div>
+      <div class="drv-head"><h2>Tu ruta de hoy</h2><div class="sub">${fmtFechaCorta(fecha)} · ${legs.length} parada(s) · ${visitas.length} visita(s) técnica(s)</div></div>
       <div id="stops"></div>
+      <div id="visitas-drv"></div>
     </div>`;
     const cont = $('#stops');
-    if(legs.length===0){ cont.innerHTML = `<div class="empty">Todavía no tienes paradas asignadas para hoy.</div>`; return; }
-    cont.innerHTML = legs.map((leg,idx)=>renderDriverStop(leg, idx)).join('');
+    if(legs.length===0){ cont.innerHTML = `<div class="empty">Todavía no tienes paradas asignadas para hoy.</div>`; }
+    else cont.innerHTML = legs.map((leg,idx)=>renderDriverStop(leg, idx)).join('');
+    const contV = $('#visitas-drv');
+    if(visitas.length>0){
+      contV.innerHTML = `<h3 style="margin:22px 0 10px;">Visitas técnicas</h3>` + visitas.map((v,idx)=>renderVisitaCardDrv(v, idx)).join('');
+    }
+  }
+  function renderVisitaCardDrv(v, idx){
+    if(v.estado==='Realizado'){
+      return `<div class="drv-stop-done">
+        <div class="top-row">
+          <span class="tag" style="width:24px;height:24px;font-size:11px;flex:0 0 auto;">V${idx+1}</span>
+          <span class="pill pill-entrega">VISITA</span>
+          <span class="stop-title-mini">${esc(v.nombre)}</span>
+          <span class="estado-badge est-Realizado">Realizado</span>
+          <button class="icon-btn" title="Reabrir" onclick="AppRuta.marcarVisita('${v.id}','Pendiente')">↺</button>
+        </div>
+        <div class="sub-row">${esc(v.productoServicio||'')}${v.pago?(' · '+esc(v.pago)):''}</div>
+      </div>`;
+    }
+    return `<div class="drv-stop">
+      <div class="stop-top">
+        <span class="tag" style="width:28px;height:28px;font-size:13px;">V${idx+1}</span>
+        <span class="pill pill-entrega">VISITA</span>
+        ${v.atrasado?'<span class="badge-atrasado">⏰ Atrasada</span>':''}
+      </div>
+      <div class="stop-title">${esc(v.nombre)}</div>
+      <div class="stop-meta">
+        <a href="${mapsUrl(v.direccion,'')}" target="_blank" rel="noopener">📍 ${esc(v.direccion)}</a><br>
+        ${v.hora?('Hora: '+esc(v.hora)+'<br>'):''}
+        ${esc(v.productoServicio||'')}${v.pago?(' · '+esc(v.pago)):''}
+        ${v.observaciones?('<br>'+esc(v.observaciones)):''}
+      </div>
+      <div class="drv-actions">
+        ${ESTADOS.map(e=>`<button class="${v.estado===e?'on '+e:''}" onclick="AppRuta.marcarVisita('${v.id}','${e}')">${e}</button>`).join('')}
+      </div>
+    </div>`;
   }
 
   function renderDriverStop(leg, idx){
@@ -1035,7 +1242,7 @@
       <div class="stop-top">
         <span class="tag" style="width:28px;height:28px;font-size:13px;">${idx+1}</span>
         <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>
-        ${leg.atrasado?'<span class="estado-badge est-Con\\ Problema">⏰ Atrasado</span>':''}
+        ${leg.atrasado?'<span class="badge-atrasado">⏰ Atrasado</span>':''}
       </div>
       <div class="stop-title">${esc(punto)}</div>
       <div class="stop-meta">
@@ -1061,6 +1268,61 @@
     tab(k){ state.tab = k; render(); },
     setFecha(v){ state.rutaFecha = v; render(); },
     setMes(v){ state.histMes = v; render(); },
+    setMesVisitas(v){ state.histVisitasMes = v; render(); },
+    async submitVisita(ev){
+      ev.preventDefault();
+      const f = ev.target;
+      const data = {
+        fecha: f.fecha.value, hora: f.hora.value,
+        nombre: f.nombre.value.trim(), direccion: f.direccion.value.trim(),
+        productoServicio: f.productoServicio.value.trim(),
+        pago: f.pago.value, conductorId: f.conductorId.value,
+        observaciones: f.observaciones.value.trim(),
+      };
+      const btn = f.querySelector('button[type=submit]');
+      btn.disabled = true; btn.textContent = 'Creando…';
+      try{
+        const numero = await crearVisita(data);
+        $('#confirm-visita').innerHTML = `<div class="confirm">Visita creada: <strong>${visIdLabel(numero)}</strong></div>`;
+        f.reset();
+        f.fecha.value = todayStr();
+      }catch(e){
+        $('#confirm-visita').innerHTML = `<div class="confirm">No se pudo crear la visita. Intenta de nuevo.</div>`;
+      }
+      btn.disabled=false; btn.textContent='Crear visita';
+      return false;
+    },
+    editarVisita(id){
+      const v = byId(state.visitas, id);
+      if(!v || estadoFinalizado(v.estado)){ customAlert('Esta visita ya está cerrada: solo se puede anular.'); return; }
+      state.editandoVisita = id; render();
+    },
+    cerrarEditorVisita(){ state.editandoVisita = null; render(); },
+    async guardarEdicionVisita(ev){
+      ev.preventDefault();
+      const f = ev.target;
+      await actualizarVisita(state.editandoVisita, {
+        fecha:f.fecha.value, hora:f.hora.value, nombre:f.nombre.value.trim(),
+        direccion:f.direccion.value.trim(), productoServicio:f.productoServicio.value.trim(),
+        pago:f.pago.value, conductorId:f.conductorId.value, observaciones:f.observaciones.value.trim(),
+      });
+      state.editandoVisita = null; render();
+      return false;
+    },
+    async eliminarVisitaUI(id){
+      const v = byId(state.visitas, id);
+      if(!v || v.estado!=='Pendiente'){ await customAlert('Esta visita ya está en curso: solo se puede anular.'); return; }
+      const ok = await customConfirm('¿Eliminar definitivamente '+visIdLabel(v.numero)+'? No se puede deshacer.');
+      if(!ok) return;
+      state.visitas = state.visitas.filter(x=>x.id!==id);
+      render();
+      try{ await eliminarVisitaDefinitiva(id); }
+      catch(e){ await customAlert('No se pudo eliminar la visita. Vuelve a intentarlo.'); }
+    },
+    async anularVisitaUI(id){
+      if(await customConfirm('¿Anular esta visita? Queda registrada como Anulada, no se borra.')) await anularVisita(id);
+    },
+    async marcarVisita(id, estado){ await marcarEstadoVisita(id, estado); },
     async submitPedido(ev){
       ev.preventDefault();
       const f = ev.target;
@@ -1246,6 +1508,11 @@
 
     db.collection('pedidos').onSnapshot(snap=>{
       state.pedidos = snap.docs.map(d=>Object.assign({id:d.id}, d.data()));
+      render();
+    }, ()=>{ render(); });
+
+    db.collection('visitas').onSnapshot(snap=>{
+      state.visitas = snap.docs.map(d=>Object.assign({id:d.id}, d.data()));
       render();
     }, ()=>{ render(); });
 
