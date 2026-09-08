@@ -369,14 +369,28 @@
     const base = nextOrderForConductorDay(conductorId, p.fecha);
     await db.doc('pedidos/'+pedidoId).update({conductorId, ordenRetiro:base, ordenEntrega:base+1});
   }
+  function legNoFinalizado(estado){
+    return estado==='Pendiente' || estado==='En Ruta';
+  }
   function legsForConductorDay(conductorId, fecha){
+    const esHoy = fecha === todayStr();
     const legs = [];
     state.pedidos.forEach(p=>{
-      if((p.conductorId||'')!==conductorId || p.fecha!==fecha) return;
-      legs.push({pedido:p, tipo:'RETIRO', orden: typeof p.ordenRetiro==='number'?p.ordenRetiro:9999, estado:p.estadoRetiro, obs:p.obsRetiro});
-      legs.push({pedido:p, tipo:'ENTREGA', orden: typeof p.ordenEntrega==='number'?p.ordenEntrega:9999, estado:p.estadoEntrega, obs:p.obsEntrega});
+      if((p.conductorId||'')!==conductorId) return;
+      const mismaFecha = p.fecha === fecha;
+      const esAtrasado = esHoy && p.fecha < fecha;
+      if(!mismaFecha && !esAtrasado) return;
+
+      if(mismaFecha || (esAtrasado && legNoFinalizado(p.estadoRetiro))){
+        legs.push({pedido:p, tipo:'RETIRO', orden: typeof p.ordenRetiro==='number'?p.ordenRetiro:9999,
+          estado:p.estadoRetiro, obs:p.obsRetiro, atrasado: esAtrasado && !mismaFecha});
+      }
+      if(mismaFecha || (esAtrasado && legNoFinalizado(p.estadoEntrega))){
+        legs.push({pedido:p, tipo:'ENTREGA', orden: typeof p.ordenEntrega==='number'?p.ordenEntrega:9999,
+          estado:p.estadoEntrega, obs:p.obsEntrega, atrasado: esAtrasado && !mismaFecha});
+      }
     });
-    legs.sort((a,b)=>a.orden-b.orden);
+    legs.sort((a,b)=> (a.atrasado===b.atrasado) ? a.orden-b.orden : (a.atrasado ? -1 : 1));
     return legs;
   }
   function legsValid(legs){
@@ -479,6 +493,25 @@
   }
   function pedidoProcesado(p){
     return p.estadoRetiro!=='Pendiente' || p.estadoEntrega!=='Pendiente';
+  }
+  function estadoFinalizado(e){
+    return e==='Realizado' || e==='Con Problema' || e==='Anulado';
+  }
+  function pedidoCompletamenteFinalizado(p){
+    return estadoFinalizado(p.estadoRetiro) && estadoFinalizado(p.estadoEntrega);
+  }
+  function accionesPedidoHtml(p){
+    if(pedidoCompletamenteFinalizado(p)){
+      if(p.estadoRetiro==='Anulado' && p.estadoEntrega==='Anulado') return '';
+      return `<button class="icon-btn" title="Anular pedido" onclick="AppRuta.anular('${p.id}')">✕</button>`;
+    }
+    const puedeEliminar = p.estadoRetiro==='Pendiente' && p.estadoEntrega==='Pendiente';
+    return `<div class="row">
+      <button class="icon-btn" title="Editar" onclick="AppRuta.editar('${p.id}')">✎</button>
+      ${puedeEliminar
+        ? `<button class="icon-btn" title="Eliminar" onclick="AppRuta.eliminar('${p.id}')">🗑</button>`
+        : `<button class="icon-btn" title="Anular pedido" onclick="AppRuta.anular('${p.id}')">✕</button>`}
+    </div>`;
   }
   async function actualizarPedido(pedidoId, data){
     await db.doc('pedidos/'+pedidoId).update(data);
@@ -658,9 +691,17 @@
     const p = byId(state.pedidos, state.editando);
     if(!p){ holder.innerHTML=''; state.editando=null; return; }
     const opciones = state.distribuidores.map(d=>`<option value="${esc(d.id)}" ${d.id===p.distribuidorId?'selected':''}>${esc(d.nombre)}</option>`).join('');
+    const retiroCerrado = estadoFinalizado(p.estadoRetiro);
+    const entregaCerrada = estadoFinalizado(p.estadoEntrega);
+    let avisoTexto = '';
+    if(retiroCerrado && entregaCerrada) avisoTexto = 'El retiro y la entrega ya quedaron cerrados.';
+    else if(retiroCerrado) avisoTexto = 'El retiro ya quedó cerrado — esos campos se bloquean. La entrega sigue editable.';
+    else if(entregaCerrada) avisoTexto = 'La entrega ya quedó cerrada — esos campos se bloquean. El retiro sigue editable.';
+    const aviso = avisoTexto ? `<div class="banner">${avisoTexto}</div>` : '';
     holder.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this) AppRuta.cerrarEditor()">
       <div class="modal">
         <h3>Editar PED-${String(p.numero).padStart(4,'0')}</h3>
+        ${aviso}
         <form id="form-editar" onsubmit="return AppRuta.guardarEdicion(event)">
           <div class="field-row">
             <div><label>Fecha de entrega</label><input type="date" name="fecha" value="${esc(p.fecha)}" required></div>
@@ -668,15 +709,15 @@
           </div>
           <div class="field-row">
             <div><label>Teléfono cliente</label><input type="text" name="telefonoCliente" value="${esc(p.telefonoCliente)}"></div>
-            <div><label>Distribuidor (retiro)</label><select name="distribuidorId" required>${opciones}</select></div>
+            <div><label>Distribuidor (retiro)</label><select name="distribuidorId" required ${retiroCerrado?'disabled':''}>${opciones}</select></div>
           </div>
           <div class="field-row">
-            <div><label>Documento retiro (OC)</label><input type="text" name="documentoRetiro" value="${esc(p.documentoRetiro)}"></div>
-            <div><label>Documento despacho</label><input type="text" name="documentoDespacho" value="${esc(p.documentoDespacho)}"></div>
+            <div><label>Documento retiro (OC)</label><input type="text" name="documentoRetiro" value="${esc(p.documentoRetiro)}" ${retiroCerrado?'disabled':''}></div>
+            <div><label>Documento despacho</label><input type="text" name="documentoDespacho" value="${esc(p.documentoDespacho)}" ${entregaCerrada?'disabled':''}></div>
           </div>
           <div class="field-row">
-            <div><label>Dirección de entrega</label><input type="text" name="direccionEntrega" value="${esc(p.direccionEntrega)}" required></div>
-            <div><label>Comuna de entrega</label><input type="text" name="comunaEntrega" value="${esc(p.comunaEntrega)}" required></div>
+            <div><label>Dirección de entrega</label><input type="text" name="direccionEntrega" value="${esc(p.direccionEntrega)}" required ${entregaCerrada?'disabled':''}></div>
+            <div><label>Comuna de entrega</label><input type="text" name="comunaEntrega" value="${esc(p.comunaEntrega)}" required ${entregaCerrada?'disabled':''}></div>
           </div>
           <div class="field-row">
             <div><label>Mercadería</label><input type="text" name="mercaderia" value="${esc(p.mercaderia)}"></div>
@@ -689,6 +730,7 @@
         </form>
       </div>
     </div>`;
+    return;
   }
 
   function topbar(subtitle){
@@ -812,7 +854,6 @@
 
   function renderPedidoSinAsignar(p){
     const condOpts = `<option value="">Sin asignar</option>` + state.conductores.map(c=>`<option value="${esc(c.id)}" ${c.id===p.conductorId?'selected':''}>${esc(c.nombre)}</option>`).join('');
-    const procesado = pedidoProcesado(p);
     return `<div class="stop">
       <div class="tag">${p.numero}</div>
       <div class="stop-body">
@@ -821,9 +862,7 @@
       </div>
       <div class="stop-actions">
         <select class="mini" onchange="AppRuta.asignar('${p.id}', this.value)">${condOpts}</select>
-        ${procesado
-          ? `<button class="icon-btn" title="Anular pedido" onclick="AppRuta.anular('${p.id}')">✕</button>`
-          : `<div class="row"><button class="icon-btn" title="Editar" onclick="AppRuta.editar('${p.id}')">✎</button><button class="icon-btn" title="Eliminar" onclick="AppRuta.eliminar('${p.id}')">🗑</button></div>`}
+        ${accionesPedidoHtml(p)}
       </div>
     </div>`;
   }
@@ -845,6 +884,7 @@
         <div class="stop-top">
           <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>
           <span class="estado-badge ${estadoCls}">${esc(leg.estado)}</span>
+          ${leg.atrasado?'<span class="estado-badge est-Con\\ Problema">⏰ Atrasado (día anterior)</span>':''}
           ${invalido?'<span class="estado-badge est-Con\\ Problema">⚠ orden invertido</span>':''}
         </div>
         <div class="stop-title">${esc(punto)} · PED-${String(p.numero).padStart(4,'0')}</div>
@@ -859,11 +899,7 @@
           <button class="icon-btn" ${idx===0?'disabled':''} onclick="AppRuta.mover('${conductorId}','${idx}',-1)">▲</button>
           <button class="icon-btn" ${idx===total-1?'disabled':''} onclick="AppRuta.mover('${conductorId}','${idx}',1)">▼</button>
         </div>
-        ${esRetiro ? (
-          pedidoProcesado(p)
-            ? (leg.estado!=='Anulado' ? `<button class="icon-btn" title="Anular pedido" onclick="AppRuta.anular('${p.id}')">✕</button>` : '')
-            : `<div class="row"><button class="icon-btn" title="Editar" onclick="AppRuta.editar('${p.id}')">✎</button><button class="icon-btn" title="Eliminar" onclick="AppRuta.eliminar('${p.id}')">🗑</button></div>`
-        ) : ''}
+        ${esRetiro ? accionesPedidoHtml(p) : ''}
       </div>
     </div>`;
   }
@@ -999,6 +1035,7 @@
       <div class="stop-top">
         <span class="tag" style="width:28px;height:28px;font-size:13px;">${idx+1}</span>
         <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>
+        ${leg.atrasado?'<span class="estado-badge est-Con\\ Problema">⏰ Atrasado</span>':''}
       </div>
       <div class="stop-title">${esc(punto)}</div>
       <div class="stop-meta">
@@ -1080,7 +1117,7 @@
     },
     editar(pid){
       const p = byId(state.pedidos, pid);
-      if(!p || pedidoProcesado(p)){ customAlert('Este pedido ya está en proceso: solo se puede anular, no editar ni eliminar.'); return; }
+      if(!p || pedidoCompletamenteFinalizado(p)){ customAlert('Este pedido ya está completamente cerrado (retiro y entrega): solo se puede anular.'); return; }
       state.editando = pid; render();
     },
     cerrarEditor(){ state.editando = null; render(); },
