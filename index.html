@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/firebase@12.0.0/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@12.0.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#F1EDE6; --surface:#FFFFFF; --surface-2:#EAE4D9; --line:#DAD3C6;
@@ -109,6 +110,7 @@
   /* --- Ruta de hoy --- */
   .ruta-controls{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:18px;}
   .ruta-controls > div{min-width:160px;}
+  .hist-row:hover{background:var(--bg-soft, rgba(0,0,0,.03));}
   .group{margin-bottom:26px;}
   .group-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
   .group-head h3{margin:0; font-size:15px;}
@@ -283,6 +285,7 @@
     editando: null,
     editandoDist: null,
     editandoVisita: null,
+    viendoDetalle: null,
   };
 
   function loadRole(){
@@ -780,10 +783,60 @@
       </div>`;
       return;
     }
+    if(state.viendoDetalle){
+      const p = byId(state.pedidos, state.viendoDetalle);
+      if(!p){ holder.innerHTML=''; state.viendoDetalle=null; return; }
+      const dist = byId(state.distribuidores, p.distribuidorId);
+      const fila = (label,val)=> val ? `<div><label style="color:var(--muted);font-size:12px;">${esc(label)}</label><div>${val}</div></div>` : '';
+      holder.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this) AppRuta.cerrarDetalle()">
+        <div class="modal">
+          <h3>Detalle PED-${String(p.numero).padStart(4,'0')}</h3>
+          <div class="field-row">
+            ${fila('Fecha de entrega', esc(p.fecha))}
+            ${fila('Cliente', esc(p.cliente))}
+          </div>
+          <div class="field-row">
+            ${fila('Teléfono cliente', p.telefonoCliente ? ('<a href="'+telUrl(p.telefonoCliente)+'" onclick="return AppRuta.llamar(event,\''+esc(p.telefonoCliente)+'\')">'+esc(p.telefonoCliente)+'</a> <a href="'+waUrl(p.telefonoCliente)+'" target="_blank">💬</a>') : '')}
+            ${fila('Conductor', esc(condNombre(p.conductorId)))}
+          </div>
+          <div class="field-row">
+            ${fila('Distribuidor (retiro)', esc(dist ? dist.nombre : distNombre(p.distribuidorId)))}
+            ${fila('Dirección retiro', dist ? (esc(dist.direccion||'')+(dist.comuna?(', '+esc(dist.comuna)):'')) : '')}
+          </div>
+          <div class="field-row">
+            ${fila('Documento retiro (OC)', esc(p.documentoRetiro||''))}
+            ${fila('Documento despacho', esc(p.documentoDespacho||''))}
+          </div>
+          <div class="field-row">
+            ${fila('Dirección de entrega', esc(p.direccionEntrega))}
+            ${fila('Comuna de entrega', esc(p.comunaEntrega))}
+          </div>
+          <div class="field-row">
+            ${fila('Mercadería', esc(p.mercaderia||''))}
+            <div></div>
+          </div>
+          <div class="field-row">
+            ${fila('Estado retiro', '<span class="estado-badge est-'+p.estadoRetiro.replace(/\s+/g,'-')+'">'+esc(p.estadoRetiro)+'</span>')}
+            ${fila('Estado entrega', '<span class="estado-badge est-'+p.estadoEntrega.replace(/\s+/g,'-')+'">'+esc(p.estadoEntrega)+'</span>')}
+          </div>
+          ${(p.obsRetiro||p.obsEntrega) ? `<div class="field-row">
+            ${fila('Observación retiro', esc(p.obsRetiro||''))}
+            ${fila('Observación entrega', esc(p.obsEntrega||''))}
+          </div>` : ''}
+          ${fila('Creado', p.creadoEn ? esc(new Date(p.creadoEn).toLocaleString('es-CL')) : '')}
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" onclick="AppRuta.cerrarDetalle()">Cerrar</button>
+            <button type="button" class="btn btn-primary" onclick="AppRuta.cerrarDetalle(); AppRuta.editar('${esc(p.id)}')">Editar</button>
+          </div>
+        </div>
+      </div>`;
+      return;
+    }
     if(!state.editando){ holder.innerHTML=''; return; }
     const p = byId(state.pedidos, state.editando);
     if(!p){ holder.innerHTML=''; state.editando=null; return; }
     const opciones = state.distribuidores.map(d=>`<option value="${esc(d.id)}" ${d.id===p.distribuidorId?'selected':''}>${esc(d.nombre)}</option>`).join('');
+    const condOpts = `<option value="">Sin asignar</option>` + state.conductores.map(c=>`<option value="${esc(c.id)}" ${c.id===p.conductorId?'selected':''}>${esc(c.nombre)}</option>`).join('');
     const retiroCerrado = estadoFinalizado(p.estadoRetiro);
     const entregaCerrada = estadoFinalizado(p.estadoEntrega);
     let avisoTexto = '';
@@ -814,7 +867,7 @@
           </div>
           <div class="field-row">
             <div><label>Mercadería</label><input type="text" name="mercaderia" value="${esc(p.mercaderia)}"></div>
-            <div></div>
+            <div><label>Conductor</label><select name="conductorId">${condOpts}</select></div>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-ghost" onclick="AppRuta.cerrarEditor()">Cancelar</button>
@@ -1008,7 +1061,7 @@
     const resumen = Object.keys(totales).filter(k=>totales[k]>0)
       .map(k=>`<span class="estado-badge est-${k.replace(/\s+/g,'-')}" style="margin-right:6px;">${totales[k]} ${k}</span>`).join('');
     const filas = delMes.map(p=>`
-      <tr>
+      <tr class="hist-row" style="cursor:pointer;" onclick="AppRuta.verDetalle('${esc(p.id)}')">
         <td>PED-${String(p.numero).padStart(4,'0')}</td>
         <td>${esc(p.fecha)}</td>
         <td>${esc(p.cliente)}</td>
@@ -1017,10 +1070,12 @@
         <td>${esc(condNombre(p.conductorId))}</td>
         <td><span class="estado-badge est-${p.estadoRetiro.replace(/\s+/g,'-')}">${esc(p.estadoRetiro)}</span></td>
         <td><span class="estado-badge est-${p.estadoEntrega.replace(/\s+/g,'-')}">${esc(p.estadoEntrega)}</span></td>
+        <td><button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12.5px;" onclick="event.stopPropagation(); AppRuta.verDetalle('${esc(p.id)}')">Ver detalle</button></td>
       </tr>`).join('');
     return `
       <div class="ruta-controls">
         <div><label>Mes</label><input type="month" value="${mes}" onchange="AppRuta.setMes(this.value)"></div>
+        <div style="align-self:flex-end;"><button type="button" class="btn btn-primary" onclick="AppRuta.exportarHistorialExcel()">⬇ Descargar Excel del mes</button></div>
       </div>
       <div style="margin-bottom:14px;">${resumen || '<span class="empty">Sin pedidos este mes.</span>'}</div>
       <div class="card" style="overflow-x:auto; padding:0;">
@@ -1028,9 +1083,9 @@
           <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:10px 12px;">ID</th><th style="padding:10px 12px;">Fecha</th><th style="padding:10px 12px;">Cliente</th>
             <th style="padding:10px 12px;">Distribuidor</th><th style="padding:10px 12px;">Documento</th><th style="padding:10px 12px;">Conductor</th>
-            <th style="padding:10px 12px;">Estado retiro</th><th style="padding:10px 12px;">Estado entrega</th>
+            <th style="padding:10px 12px;">Estado retiro</th><th style="padding:10px 12px;">Estado entrega</th><th style="padding:10px 12px;"></th>
           </tr></thead>
-          <tbody>${filas || '<tr><td colspan="8" style="padding:16px;color:var(--muted);">Sin pedidos en este mes.</td></tr>'}</tbody>
+          <tbody>${filas || '<tr><td colspan="9" style="padding:16px;color:var(--muted);">Sin pedidos en este mes.</td></tr>'}</tbody>
         </table>
       </div>`;
   }
@@ -1269,6 +1324,37 @@
     setFecha(v){ state.rutaFecha = v; render(); },
     setMes(v){ state.histMes = v; render(); },
     setMesVisitas(v){ state.histVisitasMes = v; render(); },
+    exportarHistorialExcel(){
+      const mes = state.histMes;
+      const delMes = state.pedidos.filter(p=>(p.fecha||'').startsWith(mes)).sort((a,b)=>a.numero-b.numero);
+      if(!delMes.length){ customAlert('No hay pedidos en '+mes+' para exportar.'); return; }
+      if(typeof XLSX === 'undefined'){ customAlert('No se pudo cargar el generador de Excel (revisa tu conexión a internet e intenta de nuevo).'); return; }
+      const rows = delMes.map(p=>({
+        'ID': 'PED-'+String(p.numero).padStart(4,'0'),
+        'Fecha entrega': p.fecha,
+        'Cliente': p.cliente,
+        'Teléfono cliente': p.telefonoCliente||'',
+        'Distribuidor': distNombre(p.distribuidorId),
+        'Documento retiro (OC)': p.documentoRetiro||'',
+        'Documento despacho': p.documentoDespacho||'',
+        'Dirección entrega': p.direccionEntrega||'',
+        'Comuna entrega': p.comunaEntrega||'',
+        'Mercadería': p.mercaderia||'',
+        'Conductor': condNombre(p.conductorId),
+        'Estado retiro': p.estadoRetiro,
+        'Estado entrega': p.estadoEntrega,
+        'Observación retiro': p.obsRetiro||'',
+        'Observación entrega': p.obsEntrega||'',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [
+        {wch:10},{wch:12},{wch:22},{wch:16},{wch:22},{wch:16},{wch:16},
+        {wch:26},{wch:16},{wch:26},{wch:18},{wch:14},{wch:14},{wch:24},{wch:24},
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Pedidos');
+      XLSX.writeFile(wb, 'pedidos_'+mes+'.xlsx');
+    },
     async submitVisita(ev){
       ev.preventDefault();
       const f = ev.target;
@@ -1383,6 +1469,8 @@
       state.editando = pid; render();
     },
     cerrarEditor(){ state.editando = null; render(); },
+    verDetalle(pid){ state.viendoDetalle = pid; render(); },
+    cerrarDetalle(){ state.viendoDetalle = null; render(); },
     async guardarEdicion(ev){
       ev.preventDefault();
       const f = ev.target;
@@ -1391,6 +1479,7 @@
         distribuidorId:f.distribuidorId.value, documentoRetiro:f.documentoRetiro.value.trim(),
         documentoDespacho:f.documentoDespacho.value.trim(), direccionEntrega:f.direccionEntrega.value.trim(),
         comunaEntrega:f.comunaEntrega.value.trim(), mercaderia:f.mercaderia.value.trim(),
+        conductorId:f.conductorId.value,
       });
       state.editando = null; render();
       return false;
