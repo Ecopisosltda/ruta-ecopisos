@@ -201,6 +201,30 @@
   .modal{background:var(--surface); border-radius:12px; padding:20px; max-width:560px; width:100%; border:1px solid var(--line);}
   .modal h3{margin:0 0 14px;}
   .modal-actions{display:flex; justify-content:space-between; align-items:center; margin-top:16px; gap:10px; flex-wrap:wrap;}
+
+  /* --- Encomiendas --- */
+  :root{ --enc:#6A4FA8; }
+  .pill-enc{background:var(--enc); color:#fff;}
+  .enc-toggle{display:flex; align-items:center; gap:10px; padding:10px 12px; margin-bottom:12px;
+    border:1px dashed var(--line); border-radius:8px; cursor:pointer; font-weight:600; font-size:14px;}
+  .enc-toggle input{width:auto; margin:0;}
+  .enc-box{border:1px solid var(--enc); border-radius:10px; padding:14px 14px 4px; margin-bottom:14px;
+    background:color-mix(in srgb, var(--enc) 6%, var(--surface));}
+  .enc-box h4{margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--enc);}
+  .solo-normal.oculto, .enc-box.oculto{display:none;}
+  .enc-destino{margin-top:6px; padding:8px 10px; border-left:3px solid var(--enc); background:var(--surface-2);
+    border-radius:0 6px 6px 0; font-size:13px; color:var(--ink); line-height:1.5;}
+  .adj-list{display:flex; flex-direction:column; gap:6px; margin:6px 0 10px;}
+  .adj-item{display:flex; align-items:center; gap:8px; font-size:13px; padding:6px 8px; background:var(--surface-2);
+    border:1px solid var(--line); border-radius:7px;}
+  .adj-item .n{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .adj-item .m{color:var(--muted); font-size:12px;}
+  .adj-btn{background:none; border:none; color:var(--enruta); font-weight:600; cursor:pointer; padding:0; font-size:13px; text-decoration:none;}
+  .adj-btn.gone{color:var(--muted); cursor:default; text-decoration:line-through;}
+  .fecha-nav{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px;}
+  .fecha-nav input{width:auto;}
+  .fecha-nav .icon-btn{width:34px; height:34px; font-size:14px;}
+  .ro-note{font-size:12.5px; color:var(--muted); margin-top:6px;}
 </style>
 </head>
 <body>
@@ -261,6 +285,16 @@
     ["elroble","El Roble - Decoraciones","Americo Vespucio 526","La Cisterna","Cristina","961598786","-33.53807563293927,-70.65918069999985"],
     ["signet","Signet","Avda Carrascal 6680","Cerro Navia","Ronal Torres","996955867","-33.41337302232021,-70.72050037118147"],
   ];
+  // Empresas de transporte para encomiendas (hoja "Encomienda")
+  const SEED_TRANSPORTES = [
+    ["pdq","PDQ Transporte","Av. El Retiro 9301","Renca","","2 2303 8700","-33.39768843279035,-70.76879844724048"],
+    ["tvp-bustamante","TVP Transporte","Av. Gral. Bustamante 656","Nunoa","","9 8735 4212","-33.44997969892261,-70.62929380908791"],
+    ["tvp-leonprado","TVP Transporte","Miguel Leon Prado 413","Santiago","","9 7883 7369","-33.46318044963108,-70.63588519330368"],
+    ["varmontt","Varmontt","Av. Gral. Bustamante 656","Nunoa","","2 2209 9882","-33.44997969892261,-70.62929380908791"],
+  ];
+  // Adjuntos: se guardan en Firestore (colección 'adjuntos'), máx ~700 KB c/u, y se borran solos 2 días después de la fecha de entrega.
+  const ADJ_MAX_BYTES = 700*1024;
+  const ADJ_DIAS = 2;
   const SEED_CONDUCTORES = [
     ["maverick-0001","Ariel Dominguez","Changan","VPXD-84"],
     ["maverick-0002","Roberto Montenegro","Poer","TCJF-73"],
@@ -275,7 +309,12 @@
     conductores: [],
     pedidos: [],
     visitas: [],
-    role: null,        // {type:'despachador'} | {type:'conductor', id, nombre}
+    transportes: [],
+    drvFecha: todayStr(),
+    editandoTransp: null,
+    adjPendientes: { nuevo: [], editar: [] },  // archivos elegidos aún no subidos
+    formDrafts: {},
+    role: null,       // {type:'despachador'} | {type:'conductor', id, nombre}
     tab: 'nuevo',
     rutaFecha: todayStr(),
     histMes: todayStr().slice(0,7),
@@ -329,6 +368,49 @@
   function distContacto(id){ const d=byId(state.distribuidores,id); return d? d.contacto : ''; }
   function distTelefono(id){ const d=byId(state.distribuidores,id); return d? d.telefono : ''; }
   function condNombre(id){ const c=byId(state.conductores,id); return c? c.nombre : 'Sin asignar'; }
+  function transpLabel(t){ return t ? (t.nombre + (t.comuna?(' – '+t.comuna):'')) : ''; }
+  // Punto de ENTREGA del pedido: el cliente (normal) o la oficina del transporte (encomienda)
+  function entregaDe(p){
+    if(p.esEncomienda){
+      const t = byId(state.transportes, p.transporteId);
+      return {
+        nombre: t ? t.nombre : (p.transporteNombre||'Transporte'),
+        direccion: t ? t.direccion : (p.direccionEntrega||''),
+        comuna: t ? t.comuna : (p.comunaEntrega||''),
+        contacto: t ? (t.contacto||t.nombre) : (p.transporteNombre||''),
+        telefono: t ? t.telefono : '',
+        coords: t ? t.coords : '',
+      };
+    }
+    return { nombre:p.cliente, direccion:p.direccionEntrega||'', comuna:p.comunaEntrega||'', contacto:p.cliente, telefono:p.telefonoCliente, coords:'' };
+  }
+  function encDestinoHtml(p){
+    if(!p.esEncomienda) return '';
+    const partes = [];
+    partes.push('<strong>Destino final:</strong> '+esc(p.encDireccionFinal||'—'));
+    let rec = esc(p.encRecibe||'');
+    if(p.encRut) rec += (rec?' · ':'')+'RUT '+esc(p.encRut);
+    if(rec) partes.push('Recibe: '+rec);
+    if(p.encTelefono) partes.push('Fono: <a href="'+telUrl(p.encTelefono)+'">'+esc(p.encTelefono)+'</a>');
+    return `<div class="enc-destino">${partes.join('<br>')}</div>`;
+  }
+  function fmtBytes(n){ return n>=1024*1024 ? (n/1024/1024).toFixed(1)+' MB' : Math.round(n/1024)+' KB'; }
+  function adjVigente(a){ return a && !a.eliminado && (!a.expiraEn || a.expiraEn > new Date().toISOString()); }
+  function adjuntosHtml(p, opts){
+    opts = opts||{};
+    const list = p.adjuntos||[];
+    if(!list.length) return opts.vacio ? `<div class="ro-note">${opts.vacio}</div>` : '';
+    return `<div class="adj-list">${list.map(a=>{
+      const vig = adjVigente(a);
+      const exp = a.expiraEn ? new Date(a.expiraEn).toLocaleDateString('es-CL') : '';
+      return `<div class="adj-item">📎
+        <span class="n">${vig
+          ? `<button type="button" class="adj-btn" onclick="AppRuta.abrirAdjunto('${esc(a.id)}')">${esc(a.nombre)}</button>`
+          : `<span class="adj-btn gone">${esc(a.nombre)}</span>`}</span>
+        <span class="m">${vig ? (fmtBytes(a.tam||0)+(exp?' · borra '+exp:'')) : 'eliminado'}</span>
+        ${opts.quitar && vig ? `<button type="button" class="icon-btn" title="Quitar" onclick="AppRuta.quitarAdjunto('${esc(p.id)}','${esc(a.id)}')">✕</button>` : ''}
+      </div>`;}).join('')}</div>`;
+  }
 
   // ---------- counter (correlative id) ----------
   async function nextNumero(){
@@ -357,16 +439,98 @@
   function visIdLabel(numero){ return 'VIS-'+String(numero).padStart(4,'0'); }
 
   // ---------- writes ----------
-  async function crearPedido(data){
+  async function crearPedido(data, archivos){
     const numero = await nextNumero();
-    await db.collection('pedidos').add(Object.assign({
+    const ref = db.collection('pedidos').doc();
+    // si ya viene con conductor, queda al final de su ruta y se puede reordenar de inmediato
+    let ordenRetiro = null, ordenEntrega = null;
+    if(data.conductorId){
+      const base = nextOrderForConductorDay(data.conductorId, data.fecha);
+      ordenRetiro = base; ordenEntrega = base+1;
+    }
+    const adjuntos = (archivos && archivos.length) ? await subirAdjuntos(ref.id, data.fecha, archivos) : [];
+    await ref.set(Object.assign({
       numero,
-      ordenRetiro:null, ordenEntrega:null,
+      ordenRetiro, ordenEntrega,
       estadoRetiro:'Pendiente', estadoEntrega:'Pendiente',
       obsRetiro:'', obsEntrega:'',
+      adjuntos,
       creadoEn: new Date().toISOString(),
     }, data));
     return numero;
+  }
+  // ---------- adjuntos (PDF / Word / imagen) ----------
+  function fechaExpiracion(fechaEntrega){
+    const ahora48 = Date.now() + ADJ_DIAS*24*3600*1000;
+    let t = ahora48;
+    if(fechaEntrega){
+      const [y,m,d] = fechaEntrega.split('-').map(Number);
+      const fin = new Date(y, m-1, d + ADJ_DIAS, 23, 59, 0).getTime();
+      t = Math.max(fin, ahora48);
+    }
+    return new Date(t).toISOString();
+  }
+  function leerComoDataUrl(blob){
+    return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(blob); });
+  }
+  async function comprimirImagen(file){
+    const url = await leerComoDataUrl(file);
+    const img = await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+    let w = img.width, h = img.height; const max = 1800;
+    if(Math.max(w,h) > max){ const k = max/Math.max(w,h); w=Math.round(w*k); h=Math.round(h*k); }
+    const cv = document.createElement('canvas'); cv.width=w; cv.height=h;
+    cv.getContext('2d').drawImage(img,0,0,w,h);
+    for(const q of [0.82,0.7,0.55,0.4]){
+      const b = await new Promise(r=>cv.toBlob(r,'image/jpeg',q));
+      if(b && b.size <= ADJ_MAX_BYTES) return {blob:b, nombre:file.name.replace(/\.[^.]+$/,'')+'.jpg', tipo:'image/jpeg'};
+    }
+    return null;
+  }
+  // valida y prepara archivos; devuelve {ok:[{blob,nombre,tipo}], errores:[texto]}
+  async function prepararArchivos(files){
+    const ok = [], errores = [];
+    for(const f of files){
+      const esImg = /^image\//.test(f.type);
+      const esDoc = /\.(pdf|docx?|png|jpe?g|webp|heic)$/i.test(f.name) || esImg || /pdf|word|officedocument/.test(f.type);
+      if(!esDoc){ errores.push(f.name+': formato no permitido (usa PDF, Word o imagen).'); continue; }
+      if(f.size <= ADJ_MAX_BYTES){ ok.push({blob:f, nombre:f.name, tipo:f.type||'application/octet-stream'}); continue; }
+      if(esImg){
+        const c = await comprimirImagen(f).catch(()=>null);
+        if(c){ ok.push(c); continue; }
+      }
+      errores.push(f.name+' pesa '+fmtBytes(f.size)+': el máximo es 700 KB.');
+    }
+    return {ok, errores};
+  }
+  async function subirAdjuntos(pedidoId, fechaEntrega, archivos){
+    const metas = [];
+    for(const a of archivos){
+      const dataUrl = await leerComoDataUrl(a.blob);
+      const expiraEn = fechaExpiracion(fechaEntrega);
+      const ref = db.collection('adjuntos').doc();
+      await ref.set({pedidoId, nombre:a.nombre, tipo:a.tipo, tam:a.blob.size, data:dataUrl, creadoEn:new Date().toISOString(), expiraEn});
+      metas.push({id:ref.id, nombre:a.nombre, tipo:a.tipo, tam:a.blob.size, expiraEn});
+    }
+    return metas;
+  }
+  // borrado automático: lo ejecuta el despachador al abrir la app
+  let limpiezaHecha = false;
+  async function limpiarAdjuntosVencidos(){
+    if(limpiezaHecha || !db) return;
+    limpiezaHecha = true;
+    try{
+      const ahora = new Date().toISOString();
+      const snap = await db.collection('adjuntos').where('expiraEn','<',ahora).get();
+      for(const d of snap.docs){
+        const pid = d.data().pedidoId;
+        await d.ref.delete();
+        const p = byId(state.pedidos, pid);
+        if(p && Array.isArray(p.adjuntos)){
+          const adj = p.adjuntos.map(a=> a.id===d.id ? Object.assign({}, a, {eliminado:true}) : a);
+          await db.doc('pedidos/'+pid).update({adjuntos: adj}).catch(()=>{});
+        }
+      }
+    }catch(e){ console.warn('Limpieza de adjuntos', e); }
   }
   function nextOrderForConductorDay(conductorId, fecha){
     let max = 0;
@@ -434,7 +598,7 @@
     return comunaColorCache[comuna];
   }
   function comunaDeLeg(l){
-    return l.tipo==='RETIRO' ? (distComuna(l.pedido.distribuidorId)||'') : (l.pedido.comunaEntrega||'');
+    return l.tipo==='RETIRO' ? (distComuna(l.pedido.distribuidorId)||'') : (entregaDe(l.pedido).comuna||'');
   }
   function rutaMapsUrl(legs){
     const puntos = legs.map(l=>{
@@ -443,7 +607,8 @@
         if(!d) return '';
         return d.coords ? d.coords : (d.direccion+', '+d.comuna);
       }
-      return (l.pedido.direccionEntrega||'')+', '+(l.pedido.comunaEntrega||'');
+      const e = entregaDe(l.pedido);
+      return e.coords ? e.coords : ((e.direccion||'')+', '+(e.comuna||''));
     }).filter(Boolean);
     if(puntos.length<2) return null;
     const origin = puntos[0], destination = puntos[puntos.length-1], waypoints = puntos.slice(1,-1);
@@ -477,11 +642,7 @@
       return a.pedido.numero-b.pedido.numero;
     });
     legs = repararOrdenRetiroAntesQueEntrega(legs);
-    for(let i=0;i<legs.length;i++){
-      const field = legs[i].tipo==='RETIRO'?'ordenRetiro':'ordenEntrega';
-      await db.doc('pedidos/'+legs[i].pedido.id).update({[field]: i+1});
-    }
-    render();
+    await guardarOrdenLegs(legs);
   }
   async function moverLeg(conductorId, fecha, idx, dir){
     const legs = legsForConductorDay(conductorId, fecha);
@@ -493,11 +654,24 @@
       customAlert('No se puede: la entrega quedaría antes que su propio retiro.');
       return;
     }
-    const a = legs[idx], b = legs[j];
-    const fA = a.tipo==='RETIRO'?'ordenRetiro':'ordenEntrega';
-    const fB = b.tipo==='RETIRO'?'ordenRetiro':'ordenEntrega';
-    await db.doc('pedidos/'+a.pedido.id).update({[fA]: b.orden});
-    await db.doc('pedidos/'+b.pedido.id).update({[fB]: a.orden});
+    await guardarOrdenLegs(sim);
+  }
+  // Renumera 1..n toda la ruta en el orden dado (funciona aunque los pedidos no tuvieran orden previo)
+  async function guardarOrdenLegs(legs){
+    const upd = {};
+    legs.forEach((l,i)=>{
+      const field = l.tipo==='RETIRO'?'ordenRetiro':'ordenEntrega';
+      const cur = l.tipo==='RETIRO' ? l.pedido.ordenRetiro : l.pedido.ordenEntrega;
+      if(cur !== i+1) (upd[l.pedido.id] = upd[l.pedido.id] || {})[field] = i+1;
+    });
+    const ids = Object.keys(upd);
+    if(!ids.length) return;
+    // actualización optimista para que la flecha responda al instante
+    ids.forEach(id=>{ const p = byId(state.pedidos,id); if(p) Object.assign(p, upd[id]); });
+    render();
+    const batch = db.batch();
+    ids.forEach(id=> batch.update(db.doc('pedidos/'+id), upd[id]));
+    await batch.commit();
   }
   async function marcarEstado(pedidoId, tipo, estado){
     const field = tipo==='RETIRO'?'estadoRetiro':'estadoEntrega';
@@ -627,6 +801,12 @@
         db.doc('distribuidores/'+id).set({nombre,direccion,comuna,contacto,telefono,coords}).catch(()=>{});
       });
     }
+    if(!state.seededTransp && state.transpReady && state.transportes.length===0){
+      state.seededTransp = true;
+      SEED_TRANSPORTES.forEach(([id,nombre,direccion,comuna,contacto,telefono,coords])=>{
+        db.doc('transportes/'+id).set({nombre,direccion,comuna,contacto,telefono,coords}).catch(()=>{});
+      });
+    }
     if(!state.seededCond && state.condReady && state.conductores.length===0){
       state.seededCond = true;
       SEED_CONDUCTORES.forEach(([id,nombre,vehiculo,patente])=>{
@@ -636,7 +816,66 @@
   }
 
   // ---------- render ----------
+  // Conserva lo que se está escribiendo en los formularios cuando llegan cambios en vivo (re-render)
+  const FORMS_BORRADOR = ['form-pedido','form-editar','form-transp','form-editar-transp'];
+  function guardarBorradores(){
+    const act = document.activeElement;
+    state._foco = null;
+    FORMS_BORRADOR.forEach(fid=>{
+      const f = document.getElementById(fid);
+      if(!f || !f.dataset.dirty) return;
+      const vals = {};
+      Array.from(f.elements).forEach(el=>{
+        if(!el.name || el.type==='file' || el.type==='submit' || el.type==='button') return;
+        vals[el.name] = el.type==='checkbox' ? el.checked : el.value;
+      });
+      state.formDrafts[fid] = vals;
+      if(act && act.form===f && act.name){
+        let sel = null; try{ sel = [act.selectionStart, act.selectionEnd]; }catch(e){}
+        state._foco = {fid, name:act.name, sel};
+      }
+    });
+  }
+  function restaurarBorradores(){
+    FORMS_BORRADOR.forEach(fid=>{
+      const f = document.getElementById(fid);
+      const vals = state.formDrafts[fid];
+      if(!f || !vals) return;
+      Object.keys(vals).forEach(n=>{
+        const el = f.elements[n];
+        if(!el || el.disabled || el.type==='file') return;
+        if(el.type==='checkbox') el.checked = vals[n];
+        else if(el.tagName==='SELECT'){ if(Array.from(el.options).some(o=>o.value===vals[n])) el.value = vals[n]; }
+        else el.value = vals[n];
+      });
+      f.dataset.dirty = '1';
+      const enc = f.elements['esEncomienda'];
+      if(enc) aplicarModoEncomienda(f, enc.checked);
+    });
+    const fo = state._foco;
+    if(fo){
+      const f = document.getElementById(fo.fid);
+      const el = f && f.elements[fo.name];
+      if(el && el.focus){ el.focus(); try{ if(fo.sel && fo.sel[0]!=null) el.setSelectionRange(fo.sel[0], fo.sel[1]); }catch(e){} }
+    }
+  }
+  // marca un formulario como "en edición" apenas el usuario escribe algo
+  ['input','change'].forEach(evn=>document.addEventListener(evn, e=>{
+    const f = e.target && e.target.form;
+    if(f && FORMS_BORRADOR.includes(f.id)) f.dataset.dirty = '1';
+  }, true));
+  function aplicarModoEncomienda(f, on){
+    f.querySelectorAll('.enc-box').forEach(b=>b.classList.toggle('oculto', !on));
+    f.querySelectorAll('.solo-normal').forEach(b=>b.classList.toggle('oculto', on));
+    f.querySelectorAll('.solo-normal input').forEach(i=>{ if(i.dataset.req) i.required = !on; });
+    f.querySelectorAll('.enc-box [data-req]').forEach(i=>{ i.required = on; });
+  }
   function render(){
+    guardarBorradores();
+    renderInterno();
+    restaurarBorradores();
+  }
+  function renderInterno(){
     const root = $('#root');
     if(!state.ready){
       root.innerHTML = `<div class="app"><div class="picker"><h1>Ruta del día</h1><p class="sub">Cargando datos compartidos…</p></div></div>`;
@@ -744,6 +983,34 @@
       </div>`;
       return;
     }
+    if(state.editandoTransp){
+      const t = byId(state.transportes, state.editandoTransp);
+      if(!t){ holder.innerHTML=''; state.editandoTransp=null; return; }
+      holder.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this) AppRuta.cerrarEditorTransp()">
+        <div class="modal">
+          <h3>Editar transporte</h3>
+          <form id="form-editar-transp" onsubmit="return AppRuta.guardarEdicionTransp(event)">
+            <div class="field-row">
+              <div><label>Nombre</label><input type="text" name="nombre" value="${esc(t.nombre)}" required></div>
+              <div><label>Contacto</label><input type="text" name="contacto" value="${esc(t.contacto)}"></div>
+            </div>
+            <div class="field-row">
+              <div><label>Dirección (oficina / bodega)</label><input type="text" name="direccion" value="${esc(t.direccion)}" required></div>
+              <div><label>Comuna</label><input type="text" name="comuna" value="${esc(t.comuna)}" required></div>
+            </div>
+            <div class="field-row">
+              <div><label>Teléfono</label><input type="text" name="telefono" value="${esc(t.telefono)}"></div>
+              <div></div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" onclick="AppRuta.cerrarEditorTransp()">Cancelar</button>
+              <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+      return;
+    }
     if(state.editandoVisita){
       const v = byId(state.visitas, state.editandoVisita);
       if(!v){ holder.innerHTML=''; state.editandoVisita=null; return; }
@@ -807,10 +1074,23 @@
             ${fila('Documento retiro (OC)', esc(p.documentoRetiro||''))}
             ${fila('Documento despacho', esc(p.documentoDespacho||''))}
           </div>
+          ${p.esEncomienda ? `
+          <div class="enc-box">
+            <h4>📦 Encomienda</h4>
+            <div class="field-row">
+              ${fila('Transporte (entrega inicial)', esc(entregaDe(p).nombre)+'<br><span style="color:var(--muted);font-size:13px;">'+esc(entregaDe(p).direccion)+', '+esc(entregaDe(p).comuna)+'</span>')}
+              ${fila('Dirección de entrega final', esc(p.encDireccionFinal||''))}
+            </div>
+            <div class="field-row">
+              ${fila('Recibe', esc(p.encRecibe||'')+(p.encRut?(' · RUT '+esc(p.encRut)):''))}
+              ${fila('Teléfono', p.encTelefono ? ('<a href="'+telUrl(p.encTelefono)+'">'+esc(p.encTelefono)+'</a>') : '')}
+            </div>
+            ${adjuntosHtml(p, {vacio:'Sin adjuntos.'})}
+          </div>` : `
           <div class="field-row">
             ${fila('Dirección de entrega', esc(p.direccionEntrega))}
             ${fila('Comuna de entrega', esc(p.comunaEntrega))}
-          </div>
+          </div>`}
           <div class="field-row">
             ${fila('Mercadería', esc(p.mercaderia||''))}
             <div></div>
@@ -861,9 +1141,10 @@
             <div><label>Documento retiro (OC)</label><input type="text" name="documentoRetiro" value="${esc(p.documentoRetiro)}" ${retiroCerrado?'disabled':''}></div>
             <div><label>Documento despacho</label><input type="text" name="documentoDespacho" value="${esc(p.documentoDespacho)}" ${entregaCerrada?'disabled':''}></div>
           </div>
-          <div class="field-row">
-            <div><label>Dirección de entrega</label><input type="text" name="direccionEntrega" value="${esc(p.direccionEntrega)}" required ${entregaCerrada?'disabled':''}></div>
-            <div><label>Comuna de entrega</label><input type="text" name="comunaEntrega" value="${esc(p.comunaEntrega)}" required ${entregaCerrada?'disabled':''}></div>
+          ${camposEncomiendaHtml(p, 'editar')}
+          <div class="field-row solo-normal ${p.esEncomienda?'oculto':''}">
+            <div><label>Dirección de entrega</label><input type="text" name="direccionEntrega" value="${p.esEncomienda?'':esc(p.direccionEntrega)}" data-req="1" ${p.esEncomienda?'':'required'} ${entregaCerrada?'disabled':''}></div>
+            <div><label>Comuna de entrega</label><input type="text" name="comunaEntrega" value="${p.esEncomienda?'':esc(p.comunaEntrega)}" data-req="1" ${p.esEncomienda?'':'required'} ${entregaCerrada?'disabled':''}></div>
           </div>
           <div class="field-row">
             <div><label>Mercadería</label><input type="text" name="mercaderia" value="${esc(p.mercaderia)}"></div>
@@ -907,7 +1188,7 @@
   }
 
   function renderDespachador(root){
-    const tabs = [['nuevo','Nuevo pedido'],['ruta','Ruta de hoy'],['hist','Historial'],['visitas','Visitas técnicas'],['dist','Distribuidores'],['cond','Conductores']];
+    const tabs = [['nuevo','Nuevo pedido'],['ruta','Ruta de hoy'],['hist','Historial'],['visitas','Visitas técnicas'],['dist','Distribuidores'],['enc','Encomienda'],['cond','Conductores']];
     root.innerHTML = `<div class="app">
       ${topbar('Despachador')}
       <div class="tabs">${tabs.map(([k,l])=>`<div class="tab ${state.tab===k?'active':''}" onclick="AppRuta.tab('${k}')">${l}</div>`).join('')}</div>
@@ -919,9 +1200,60 @@
     else if(state.tab==='hist') panel.innerHTML = viewHistorial();
     else if(state.tab==='visitas') panel.innerHTML = viewVisitas();
     else if(state.tab==='dist') panel.innerHTML = viewDistribuidores();
+    else if(state.tab==='enc') panel.innerHTML = viewTransportes();
     else panel.innerHTML = viewConductores();
   }
 
+  function camposEncomiendaHtml(p, ctx){
+    const on = !!(p && p.esEncomienda);
+    const bloqueado = p && estadoFinalizado(p.estadoEntrega);
+    const dis = bloqueado ? 'disabled' : '';
+    const transpOpts = `<option value="">Elegir transporte…</option>` + state.transportes.slice()
+      .sort((a,b)=>transpLabel(a).localeCompare(transpLabel(b)))
+      .map(t=>`<option value="${esc(t.id)}" ${p && p.transporteId===t.id?'selected':''}>${esc(transpLabel(t))}</option>`).join('');
+    const pend = state.adjPendientes[ctx]||[];
+    const pendHtml = pend.length ? `<div class="adj-list">${pend.map((a,i)=>`<div class="adj-item">⏳ <span class="n">${esc(a.nombre)}</span><span class="m">${fmtBytes(a.blob.size)} · por subir</span><button type="button" class="icon-btn" onclick="AppRuta.quitarPendiente('${ctx}',${i})">✕</button></div>`).join('')}</div>` : '';
+    const v = (k)=> p ? esc(p[k]||'') : '';
+    return `
+      <label class="enc-toggle"><input type="checkbox" name="esEncomienda" ${on?'checked':''} ${dis} onchange="AppRuta.toggleEnc(this)"> 📦 Encomienda (envío a regiones por transporte)</label>
+      <div class="enc-box ${on?'':'oculto'}">
+        <h4>Datos de encomienda</h4>
+        <div class="field-row">
+          <div><label>Transporte (entrega inicial)</label><select name="transporteId" ${on?'required':''} data-req="1" ${dis}>${transpOpts}</select></div>
+          <div><label>Dirección de entrega final</label><input type="text" name="encDireccionFinal" value="${v('encDireccionFinal')}" placeholder="Avda. Panorámica 1800, Coquimbo" ${on?'required':''} data-req="1" ${dis}></div>
+        </div>
+        <div class="field-row">
+          <div><label>Nombre de quien recibe</label><input type="text" name="encRecibe" value="${v('encRecibe')}" ${dis}></div>
+          <div><label>RUT</label><input type="text" name="encRut" value="${v('encRut')}" placeholder="12.345.678-9" ${dis}></div>
+        </div>
+        <div class="field-row">
+          <div><label>Teléfono de quien recibe</label><input type="text" name="encTelefono" value="${v('encTelefono')}" placeholder="+569 1234 5678" ${dis}></div>
+          <div><label>Adjuntos (factura, boleta, ficha de envío)</label>
+            <input type="file" multiple accept=".pdf,.doc,.docx,image/*" onchange="AppRuta.elegirArchivos('${ctx}', this)">
+          </div>
+        </div>
+        ${p ? adjuntosHtml(p, {quitar:true}) : ''}
+        ${pendHtml}
+        <div class="ro-note" style="margin:-4px 0 10px;">PDF, Word o imagen, máx. 700 KB c/u (las fotos se comprimen solas). Se borran automáticamente 2 días después de la fecha de entrega; los datos del pedido se conservan.</div>
+      </div>`;
+  }
+  function datosEncomiendaDeForm(f){
+    const on = f.esEncomienda && f.esEncomienda.checked;
+    if(!on) return {esEncomienda:false};
+    const t = byId(state.transportes, f.transporteId.value);
+    return {
+      esEncomienda: true,
+      transporteId: f.transporteId.value,
+      transporteNombre: t ? t.nombre : '',
+      // la entrega del conductor es en la oficina del transporte
+      direccionEntrega: t ? t.direccion : '',
+      comunaEntrega: t ? t.comuna : '',
+      encDireccionFinal: f.encDireccionFinal.value.trim(),
+      encRecibe: f.encRecibe.value.trim(),
+      encRut: f.encRut.value.trim(),
+      encTelefono: f.encTelefono.value.trim(),
+    };
+  }
   function viewNuevoPedido(){
     const opciones = state.distribuidores.map(d=>`<option value="${esc(d.id)}">${esc(d.nombre)}</option>`).join('');
     const condOpts = `<option value="">Sin asignar</option>` + state.conductores.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
@@ -939,16 +1271,17 @@
           <div><label>Documento retiro (OC)</label><input type="text" name="documentoRetiro" placeholder="OC 3020"></div>
           <div><label>Documento despacho (Factura/Ticket)</label><input type="text" name="documentoDespacho" placeholder="Factura 100"></div>
         </div>
-        <div class="field-row">
-          <div><label>Dirección de entrega</label><input type="text" name="direccionEntrega" required></div>
-          <div><label>Comuna de entrega</label><input type="text" name="comunaEntrega" required></div>
+        ${camposEncomiendaHtml(null, 'nuevo')}
+        <div class="field-row solo-normal">
+          <div><label>Dirección de entrega</label><input type="text" name="direccionEntrega" data-req="1" required></div>
+          <div><label>Comuna de entrega</label><input type="text" name="comunaEntrega" data-req="1" required></div>
         </div>
         <div class="field-row">
           <div><label>Mercadería</label><input type="text" name="mercaderia" placeholder="15 mts2 alfombra Sahara"></div>
           <div><label>Conductor</label><select name="conductorId">${condOpts}</select></div>
         </div>
-        <button class="btn btn-primary" type="submit">Crear pedido</button>
-        <div id="confirm-pedido"></div>
+        <button class="btn btn-primary" type="submit" ${state.creando?'disabled':''}>${state.creando?'Creando…':'Crear pedido'}</button>
+        <div id="confirm-pedido">${state.ultimoCreado?`<div class="confirm">${state.ultimoCreado}</div>`:''}</div>
       </form>
     </div>`;
   }
@@ -988,7 +1321,8 @@
       const badIds = invalidPedidoIds(legs);
       const mapsUrlDia = rutaMapsUrl(legs);
       html += `<div class="ruta-controls" style="margin-bottom:12px;">
-        <button class="btn btn-ghost btn-small" onclick="AppRuta.ordenarComuna('${key}')">↕ Ordenar por comuna (sugerencia)</button>
+        <span class="ro-note" style="margin:0;align-self:center;">Ordena con ▲▼ · opcional:</span>
+        <button class="btn btn-ghost btn-small" onclick="AppRuta.ordenarComuna('${key}')">↕ Ordenar por comuna</button>
         ${mapsUrlDia ? `<a class="btn btn-ghost btn-small" href="${mapsUrlDia}" target="_blank" rel="noopener">🗺 Ver ruta completa en Maps</a>` : ''}
       </div>`;
       legs.forEach((leg, idx)=>{
@@ -1004,8 +1338,8 @@
     return `<div class="stop">
       <div class="tag">${p.numero}</div>
       <div class="stop-body">
-        <div class="stop-top"><span class="stop-title">${esc(p.cliente)}</span></div>
-        <div class="stop-meta">${esc(distNombre(p.distribuidorId))} → ${esc(p.direccionEntrega)}, ${esc(p.comunaEntrega)}</div>
+        <div class="stop-top"><span class="stop-title">${esc(p.cliente)}</span>${p.esEncomienda?'<span class="pill pill-enc">📦 Encomienda</span>':''}</div>
+        <div class="stop-meta">${esc(distNombre(p.distribuidorId))} → ${p.esEncomienda ? (esc(entregaDe(p).nombre)+' → '+esc(p.encDireccionFinal||'')) : (esc(p.direccionEntrega)+', '+esc(p.comunaEntrega))}</div>
       </div>
       <div class="stop-actions">
         <select class="mini" onchange="AppRuta.asignar('${p.id}', this.value)">${condOpts}</select>
@@ -1017,11 +1351,12 @@
   function renderStopRow(leg, conductorId, idx, total, invalido){
     const p = leg.pedido;
     const esRetiro = leg.tipo==='RETIRO';
-    const punto = esRetiro ? distNombre(p.distribuidorId) : p.cliente;
-    const dir = esRetiro ? distDireccion(p.distribuidorId) : p.direccionEntrega;
-    const comuna = esRetiro ? distComuna(p.distribuidorId) : p.comunaEntrega;
-    const contacto = esRetiro ? distContacto(p.distribuidorId) : p.cliente;
-    const tel = esRetiro ? distTelefono(p.distribuidorId) : p.telefonoCliente;
+    const ent = entregaDe(p);
+    const punto = esRetiro ? distNombre(p.distribuidorId) : (p.esEncomienda ? (ent.nombre+' (encomienda de '+(p.cliente||'')+')') : p.cliente);
+    const dir = esRetiro ? distDireccion(p.distribuidorId) : ent.direccion;
+    const comuna = esRetiro ? distComuna(p.distribuidorId) : ent.comuna;
+    const contacto = esRetiro ? distContacto(p.distribuidorId) : ent.contacto;
+    const tel = esRetiro ? distTelefono(p.distribuidorId) : ent.telefono;
     const doc = esRetiro ? p.documentoRetiro : p.documentoDespacho;
     const estadoCls = 'est-'+leg.estado.replace(/\s+/g,'-');
     const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${comunaColor(comuna)};margin-right:5px;"></span>`;
@@ -1030,6 +1365,7 @@
       <div class="stop-body">
         <div class="stop-top">
           <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>
+          ${p.esEncomienda?'<span class="pill pill-enc">📦 Encomienda</span>':''}
           <span class="estado-badge ${estadoCls}">${esc(leg.estado)}</span>
           ${leg.atrasado?'<span class="badge-atrasado">⏰ Atrasado (día anterior)</span>':''}
           ${invalido?'<span class="estado-badge est-Con\\ Problema">⚠ orden invertido</span>':''}
@@ -1039,6 +1375,8 @@
           <a href="${mapsUrl(dir,comuna)}" target="_blank" rel="noopener">${dot}${esc(dir)}, ${esc(comuna)}</a><br>
           ${esc(contacto||'')} ${tel?('· <a href="'+telUrl(tel)+'" onclick="return AppRuta.llamar(event,\''+esc(tel)+'\')">'+esc(tel)+'</a> <a href="'+waUrl(tel)+'" target="_blank" title="WhatsApp">💬</a> <button type="button" class="icon-btn" style="width:auto;padding:2px 6px;" onclick="AppRuta.copiar(\''+esc(tel)+'\')" title="Copiar número">📋</button>'):''}<br>
           ${esc(doc||'')}${p.mercaderia?(' · '+esc(p.mercaderia)):''}
+          ${!esRetiro ? encDestinoHtml(p) : ''}
+          ${!esRetiro && p.esEncomienda ? adjuntosHtml(p) : ''}
         </div>
       </div>
       <div class="stop-actions">
@@ -1179,6 +1517,36 @@
       <div class="card">${rows || '<div class="empty">Sin distribuidores.</div>'}</div>`;
   }
 
+  function viewTransportes(){
+    const rows = state.transportes.slice().sort((a,b)=>transpLabel(a).localeCompare(transpLabel(b))).map(t=>`
+      <div class="list-item">
+        <div><strong>${esc(t.nombre)}</strong><div class="meta">${esc(t.direccion)}, ${esc(t.comuna)} · ${esc(t.contacto||'')} ${esc(t.telefono||'')}</div></div>
+        <div class="row">
+          <button class="icon-btn" title="Editar" onclick="AppRuta.editarTransp('${t.id}')">✎</button>
+          <button class="icon-btn" title="Eliminar" onclick="AppRuta.borrarTransp('${t.id}','${esc(t.nombre)}')">✕</button>
+        </div>
+      </div>`).join('');
+    return `<div class="banner">Empresas de transporte para encomiendas a regiones. Aparecen en el selector "Transporte" al marcar 📦 Encomienda en un pedido.</div>
+      <div class="card" style="margin-bottom:18px;">
+        <form id="form-transp" onsubmit="return AppRuta.submitTransporte(event)">
+          <div class="field-row">
+            <div><label>Nombre</label><input name="nombre" required placeholder="Ej: Starken"></div>
+            <div><label>Contacto</label><input name="contacto"></div>
+          </div>
+          <div class="field-row">
+            <div><label>Dirección (oficina / bodega)</label><input name="direccion" required></div>
+            <div><label>Comuna</label><input name="comuna" required></div>
+          </div>
+          <div class="field-row">
+            <div><label>Teléfono</label><input name="telefono"></div>
+            <div></div>
+          </div>
+          <button class="btn btn-primary" type="submit">Agregar transporte</button>
+        </form>
+      </div>
+      <div class="card">${rows || '<div class="empty">Sin transportes.</div>'}</div>`;
+  }
+
   function viewConductores(){
     const rows = state.conductores.map(c=>`
       <div class="list-item">
@@ -1221,25 +1589,44 @@
     });
     return list;
   }
+  function drvSoloLectura(){ return state.drvFecha !== todayStr(); }
   function renderConductor(root){
-    const fecha = todayStr();
+    const hoy = todayStr();
+    const fecha = state.drvFecha || hoy;
+    const esHoy = fecha === hoy, pasado = fecha < hoy;
+    const ro = !esHoy;
     const legs = legsForConductorDay(state.role.id, fecha).filter(l=>l.estado!=='Anulado');
     const visitas = visitasVisiblesHoy(state.role.id, fecha);
+    const titulo = esHoy ? 'Tu ruta de hoy' : (pasado ? 'Ruta del día (pasado)' : 'Ruta programada');
+    const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    const [y,m,d] = fecha.split('-').map(Number);
+    const diaNombre = dias[new Date(y,m-1,d).getDay()];
+    const aviso = ro ? `<div class="banner" style="margin-top:12px;">${pasado
+      ? '🔒 Día anterior: solo lectura. Lo que quedó pendiente aparece como "Atrasado" en tu ruta de hoy.'
+      : '👁 Día futuro: solo lectura. Podrás marcar estados ese mismo día.'}</div>` : '';
     root.innerHTML = `<div class="app">
       ${topbar(state.role.nombre)}
-      <div class="drv-head"><h2>Tu ruta de hoy</h2><div class="sub">${fmtFechaCorta(fecha)} · ${legs.length} parada(s) · ${visitas.length} visita(s) técnica(s)</div></div>
+      <div class="drv-head"><h2>${titulo}</h2><div class="sub">${diaNombre} ${fmtFechaCorta(fecha)} · ${legs.length} parada(s) · ${visitas.length} visita(s) técnica(s)</div>
+        <div class="fecha-nav">
+          <button class="icon-btn" title="Día anterior" onclick="AppRuta.drvDia(-1)">◀</button>
+          <input type="date" value="${fecha}" onchange="AppRuta.drvFecha(this.value)">
+          <button class="icon-btn" title="Día siguiente" onclick="AppRuta.drvDia(1)">▶</button>
+          ${esHoy ? '' : '<button class="btn btn-ghost btn-small" onclick="AppRuta.drvFecha(\'\')">Volver a hoy</button>'}
+        </div>
+        ${aviso}
+      </div>
       <div id="stops"></div>
       <div id="visitas-drv"></div>
     </div>`;
     const cont = $('#stops');
-    if(legs.length===0){ cont.innerHTML = `<div class="empty">Todavía no tienes paradas asignadas para hoy.</div>`; }
-    else cont.innerHTML = legs.map((leg,idx)=>renderDriverStop(leg, idx)).join('');
+    if(legs.length===0){ cont.innerHTML = `<div class="empty">${esHoy ? 'Todavía no tienes paradas asignadas para hoy.' : 'Sin paradas para este día.'}</div>`; }
+    else cont.innerHTML = legs.map((leg,idx)=>renderDriverStop(leg, idx, ro)).join('');
     const contV = $('#visitas-drv');
     if(visitas.length>0){
-      contV.innerHTML = `<h3 style="margin:22px 0 10px;">Visitas técnicas</h3>` + visitas.map((v,idx)=>renderVisitaCardDrv(v, idx)).join('');
+      contV.innerHTML = `<h3 style="margin:22px 0 10px;">Visitas técnicas</h3>` + visitas.map((v,idx)=>renderVisitaCardDrv(v, idx, ro)).join('');
     }
   }
-  function renderVisitaCardDrv(v, idx){
+  function renderVisitaCardDrv(v, idx, ro){
     if(v.estado==='Realizado'){
       return `<div class="drv-stop-done">
         <div class="top-row">
@@ -1247,7 +1634,7 @@
           <span class="pill pill-entrega">VISITA</span>
           <span class="stop-title-mini">${esc(v.nombre)}</span>
           <span class="estado-badge est-Realizado">Realizado</span>
-          <button class="icon-btn" title="Reabrir" onclick="AppRuta.marcarVisita('${v.id}','Pendiente')">↺</button>
+          ${ro ? '🔒' : `<button class="icon-btn" title="Reabrir" onclick="AppRuta.marcarVisita('${v.id}','Pendiente')">↺</button>`}
         </div>
         <div class="sub-row">${esc(v.productoServicio||'')}${v.pago?(' · '+esc(v.pago)):''}</div>
       </div>`;
@@ -1265,38 +1652,40 @@
         ${esc(v.productoServicio||'')}${v.pago?(' · '+esc(v.pago)):''}
         ${v.observaciones?('<br>'+esc(v.observaciones)):''}
       </div>
-      <div class="drv-actions">
+      ${ro ? `<div><span class="estado-badge est-${(v.estado||'').replace(/\s+/g,'-')}">${esc(v.estado)}</span></div>` : `<div class="drv-actions">
         ${ESTADOS.map(e=>`<button class="${v.estado===e?'on '+e:''}" onclick="AppRuta.marcarVisita('${v.id}','${e}')">${e}</button>`).join('')}
-      </div>
+      </div>`}
     </div>`;
   }
 
-  function renderDriverStop(leg, idx){
+  function renderDriverStop(leg, idx, ro){
     const p = leg.pedido;
     const esRetiro = leg.tipo==='RETIRO';
-    const punto = esRetiro ? distNombre(p.distribuidorId) : p.cliente;
+    const ent = entregaDe(p);
+    const punto = esRetiro ? distNombre(p.distribuidorId) : ent.nombre;
+    const encPill = p.esEncomienda ? '<span class="pill pill-enc">📦 Encomienda</span>' : '';
     const doc = esRetiro ? p.documentoRetiro : p.documentoDespacho;
     if(leg.estado==='Realizado'){
       const detalle = [doc, p.mercaderia].filter(Boolean).join(' · ');
       return `<div class="drv-stop-done">
         <div class="top-row">
           <span class="tag" style="width:24px;height:24px;font-size:11px;flex:0 0 auto;">${idx+1}</span>
-          <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>
+          <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>${encPill}
           <span class="stop-title-mini">${esc(punto)}</span>
           <span class="estado-badge est-Realizado">Realizado</span>
-          <button class="icon-btn" title="Reabrir esta parada" onclick="AppRuta.marcar('${p.id}','${leg.tipo}','Pendiente')">↺</button>
+          ${ro ? '🔒' : `<button class="icon-btn" title="Reabrir esta parada" onclick="AppRuta.marcar('${p.id}','${leg.tipo}','Pendiente')">↺</button>`}
         </div>
         ${detalle ? `<div class="sub-row">${esc(detalle)}</div>` : ''}
       </div>`;
     }
-    const dir = esRetiro ? distDireccion(p.distribuidorId) : p.direccionEntrega;
-    const comuna = esRetiro ? distComuna(p.distribuidorId) : p.comunaEntrega;
-    const contacto = esRetiro ? distContacto(p.distribuidorId) : p.cliente;
-    const tel = esRetiro ? distTelefono(p.distribuidorId) : p.telefonoCliente;
+    const dir = esRetiro ? distDireccion(p.distribuidorId) : ent.direccion;
+    const comuna = esRetiro ? distComuna(p.distribuidorId) : ent.comuna;
+    const contacto = esRetiro ? distContacto(p.distribuidorId) : ent.contacto;
+    const tel = esRetiro ? distTelefono(p.distribuidorId) : ent.telefono;
     return `<div class="drv-stop">
       <div class="stop-top">
         <span class="tag" style="width:28px;height:28px;font-size:13px;">${idx+1}</span>
-        <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>
+        <span class="pill ${esRetiro?'pill-retiro':'pill-entrega'}">${leg.tipo}</span>${encPill}
         ${leg.atrasado?'<span class="badge-atrasado">⏰ Atrasado</span>':''}
       </div>
       <div class="stop-title">${esc(punto)}</div>
@@ -1304,14 +1693,16 @@
         <a href="${mapsUrl(dir,comuna)}" target="_blank" rel="noopener">📍 ${esc(dir)}, ${esc(comuna)}</a><br>
         ${esc(contacto||'')} ${tel?('· <a href="'+telUrl(tel)+'" onclick="return AppRuta.llamar(event,\''+esc(tel)+'\')">☎ '+esc(tel)+'</a> <a href="'+waUrl(tel)+'" target="_blank" style="margin-left:6px;">💬 WhatsApp</a> <button type="button" class="icon-btn" style="width:auto;padding:4px 8px;" onclick="AppRuta.copiar(\''+esc(tel)+'\')" title="Copiar número">📋 Copiar</button>'):''}<br>
         ${esc(doc||'')}${p.mercaderia?(' · '+esc(p.mercaderia)):''}
+        ${!esRetiro && p.esEncomienda ? ('<div style="margin-top:4px;">Cliente: '+esc(p.cliente||'')+'</div>'+encDestinoHtml(p)+adjuntosHtml(p)) : ''}
       </div>
+      ${ro ? `<div><span class="estado-badge est-${leg.estado.replace(/\s+/g,'-')}">${esc(leg.estado)}</span>${leg.obs?('<div class="ro-note">Obs: '+esc(leg.obs)+'</div>'):''}</div>` : `
       <div class="drv-actions">
         ${ESTADOS.map(e=>`<button class="${leg.estado===e?'on '+e:''}" onclick="AppRuta.marcar('${p.id}','${leg.tipo}','${e}')">${e}</button>`).join('')}
       </div>
       <div class="obs-input">
         <input type="text" placeholder="Observación (opcional)" value="${esc(leg.obs||'')}"
           onchange="AppRuta.obs('${p.id}','${leg.tipo}', this.value)">
-      </div>
+      </div>`}
     </div>`;
   }
 
@@ -1340,6 +1731,12 @@
         'Dirección entrega': p.direccionEntrega||'',
         'Comuna entrega': p.comunaEntrega||'',
         'Mercadería': p.mercaderia||'',
+        'Encomienda': p.esEncomienda ? 'Sí' : '',
+        'Transporte': p.esEncomienda ? entregaDe(p).nombre : '',
+        'Destino final': p.encDireccionFinal||'',
+        'Recibe': p.encRecibe||'',
+        'RUT recibe': p.encRut||'',
+        'Teléfono recibe': p.encTelefono||'',
         'Conductor': condNombre(p.conductorId),
         'Estado retiro': p.estadoRetiro,
         'Estado entrega': p.estadoEntrega,
@@ -1349,7 +1746,7 @@
       const ws = XLSX.utils.json_to_sheet(rows);
       ws['!cols'] = [
         {wch:10},{wch:12},{wch:22},{wch:16},{wch:22},{wch:16},{wch:16},
-        {wch:26},{wch:16},{wch:26},{wch:18},{wch:14},{wch:14},{wch:24},{wch:24},
+        {wch:26},{wch:16},{wch:26},{wch:11},{wch:18},{wch:30},{wch:20},{wch:14},{wch:16},{wch:18},{wch:14},{wch:14},{wch:24},{wch:24},
       ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Pedidos');
@@ -1408,7 +1805,10 @@
     async anularVisitaUI(id){
       if(await customConfirm('¿Anular esta visita? Queda registrada como Anulada, no se borra.')) await anularVisita(id);
     },
-    async marcarVisita(id, estado){ await marcarEstadoVisita(id, estado); },
+    async marcarVisita(id, estado){
+      if(state.role && state.role.type==='conductor' && drvSoloLectura()){ await customAlert('Este día es solo de lectura.'); return; }
+      await marcarEstadoVisita(id, estado);
+    },
     async submitPedido(ev){
       ev.preventDefault();
       const f = ev.target;
@@ -1423,18 +1823,98 @@
         mercaderia: f.mercaderia.value.trim(),
         conductorId: f.conductorId.value,
       };
+      Object.assign(data, datosEncomiendaDeForm(f));
+      const archivos = data.esEncomienda ? state.adjPendientes.nuevo.slice() : [];
       const btn = f.querySelector('button[type=submit]');
-      btn.disabled = true; btn.textContent = 'Creando…';
+      btn.disabled = true; btn.textContent = archivos.length ? 'Subiendo adjuntos…' : 'Creando…';
+      state.creando = true;
       try{
-        const numero = await crearPedido(data);
-        $('#confirm-pedido').innerHTML = `<div class="confirm">Pedido creado: <strong>${pedIdLabel(numero)}</strong></div>`;
-        f.reset();
-        f.fecha.value = todayStr();
+        const numero = await crearPedido(data, archivos);
+        state.adjPendientes.nuevo = [];
+        state.ultimoCreado = `Pedido creado: <strong>${pedIdLabel(numero)}</strong>${data.esEncomienda?' · 📦 encomienda':''}${archivos.length?(' · '+archivos.length+' adjunto(s)'):''}`;
+        // el formulario pudo re-dibujarse mientras se guardaba: se limpia el que está en pantalla
+        const fa = document.getElementById('form-pedido');
+        if(fa){ fa.reset(); fa.fecha.value = todayStr(); aplicarModoEncomienda(fa, false); delete fa.dataset.dirty; }
+        delete state.formDrafts['form-pedido'];
+        state.creando = false;
+        render();
       }catch(e){
-        $('#confirm-pedido').innerHTML = `<div class="confirm">No se pudo crear el pedido. Intenta de nuevo.</div>`;
+        console.error(e);
+        state.ultimoCreado = 'No se pudo crear el pedido. Intenta de nuevo.';
+        render();
       }
-      btn.disabled=false; btn.textContent='Crear pedido';
+      state.creando = false;
+      const b2 = document.querySelector('#form-pedido button[type=submit]');
+      if(b2){ b2.disabled=false; b2.textContent='Crear pedido'; }
       return false;
+    },
+    toggleEnc(chk){ aplicarModoEncomienda(chk.form, chk.checked); },
+    async elegirArchivos(ctx, input){
+      const files = Array.from(input.files||[]);
+      input.value = '';
+      if(!files.length) return;
+      const {ok, errores} = await prepararArchivos(files);
+      state.adjPendientes[ctx] = (state.adjPendientes[ctx]||[]).concat(ok);
+      render();
+      if(errores.length) await customAlert(errores.join('\n'));
+    },
+    quitarPendiente(ctx, i){ (state.adjPendientes[ctx]||[]).splice(i,1); render(); },
+    async quitarAdjunto(pid, aid){
+      if(!await customConfirm('¿Quitar este adjunto? Se borra el archivo.')) return;
+      const p = byId(state.pedidos, pid); if(!p) return;
+      await db.doc('adjuntos/'+aid).delete().catch(()=>{});
+      await db.doc('pedidos/'+pid).update({adjuntos: (p.adjuntos||[]).filter(a=>a.id!==aid)});
+    },
+    async abrirAdjunto(aid){
+      // se abre la pestaña de inmediato (si no, el navegador la bloquea) y luego se carga el archivo
+      const win = window.open('', '_blank');
+      if(win) win.document.write('<p style="font-family:sans-serif">Cargando adjunto…</p>');
+      try{
+        const snap = await db.doc('adjuntos/'+aid).get();
+        if(!snap.exists){ if(win) win.close(); await customAlert('Este adjunto ya fue eliminado.'); return; }
+        const a = snap.data();
+        const blob = await (await fetch(a.data)).blob();
+        const url = URL.createObjectURL(blob);
+        const visible = /pdf|image\//.test(a.tipo||'');
+        if(visible && win){ win.location.href = url; }
+        else {
+          if(win) win.close();
+          const el = document.createElement('a'); el.href = url; el.download = a.nombre || 'adjunto';
+          document.body.appendChild(el); el.click(); el.remove();
+        }
+        setTimeout(()=>URL.revokeObjectURL(url), 60000);
+      }catch(e){
+        if(win) win.close();
+        await customAlert('No se pudo abrir el adjunto. Revisa tu conexión.');
+      }
+    },
+    async submitTransporte(ev){
+      ev.preventDefault(); const f = ev.target;
+      await db.collection('transportes').add({nombre:f.nombre.value.trim(), direccion:f.direccion.value.trim(), comuna:f.comuna.value.trim(), contacto:f.contacto.value.trim(), telefono:f.telefono.value.trim()});
+      const fa = document.getElementById('form-transp'); if(fa){ fa.reset(); delete fa.dataset.dirty; }
+      delete state.formDrafts['form-transp'];
+      render();
+      return false;
+    },
+    editarTransp(id){ delete state.formDrafts['form-editar-transp']; state.editandoTransp = id; render(); },
+    cerrarEditorTransp(){ delete state.formDrafts['form-editar-transp']; state.editandoTransp = null; render(); },
+    async guardarEdicionTransp(ev){
+      ev.preventDefault(); const f = ev.target;
+      await db.doc('transportes/'+state.editandoTransp).update({
+        nombre:f.nombre.value.trim(), direccion:f.direccion.value.trim(), comuna:f.comuna.value.trim(),
+        contacto:f.contacto.value.trim(), telefono:f.telefono.value.trim(),
+      });
+      delete state.formDrafts['form-editar-transp'];
+      state.editandoTransp = null; render();
+      return false;
+    },
+    async borrarTransp(id, nombre){ if(await customConfirm('¿Eliminar '+nombre+' de la lista de transportes? Los pedidos antiguos conservan su nombre.')) await db.doc('transportes/'+id).delete(); },
+    drvFecha(v){ state.drvFecha = v || todayStr(); render(); window.scrollTo(0,0); },
+    drvDia(delta){
+      const [y,m,d] = (state.drvFecha||todayStr()).split('-').map(Number);
+      const dt = new Date(y, m-1, d+delta); const pz = n=>String(n).padStart(2,'0');
+      state.drvFecha = `${dt.getFullYear()}-${pz(dt.getMonth()+1)}-${pz(dt.getDate())}`;
+      render();
     },
     async submitDistribuidor(ev){
       ev.preventDefault(); const f = ev.target;
@@ -1466,21 +1946,55 @@
     editar(pid){
       const p = byId(state.pedidos, pid);
       if(!p || pedidoCompletamenteFinalizado(p)){ customAlert('Este pedido ya está completamente cerrado (retiro y entrega): solo se puede anular.'); return; }
+      delete state.formDrafts['form-editar']; state.adjPendientes.editar = [];
       state.editando = pid; render();
     },
-    cerrarEditor(){ state.editando = null; render(); },
+    cerrarEditor(){ delete state.formDrafts['form-editar']; state.adjPendientes.editar = []; state.editando = null; render(); },
     verDetalle(pid){ state.viendoDetalle = pid; render(); },
     cerrarDetalle(){ state.viendoDetalle = null; render(); },
     async guardarEdicion(ev){
       ev.preventDefault();
       const f = ev.target;
-      await actualizarPedido(state.editando, {
+      const pid = state.editando;
+      const p = byId(state.pedidos, pid);
+      if(!p) return false;
+      const data = {
         fecha:f.fecha.value, cliente:f.cliente.value.trim(), telefonoCliente:f.telefonoCliente.value.trim(),
         distribuidorId:f.distribuidorId.value, documentoRetiro:f.documentoRetiro.value.trim(),
         documentoDespacho:f.documentoDespacho.value.trim(), direccionEntrega:f.direccionEntrega.value.trim(),
         comunaEntrega:f.comunaEntrega.value.trim(), mercaderia:f.mercaderia.value.trim(),
         conductorId:f.conductorId.value,
-      });
+      };
+      if(!estadoFinalizado(p.estadoEntrega)){
+        Object.assign(data, datosEncomiendaDeForm(f));
+      } else {
+        // entrega cerrada: no se tocan dirección ni datos de encomienda
+        delete data.direccionEntrega; delete data.comunaEntrega;
+      }
+      // cambio de conductor o fecha: el pedido pasa al final de la nueva ruta
+      if(data.conductorId && (data.conductorId!==p.conductorId || data.fecha!==p.fecha)){
+        const base = nextOrderForConductorDay(data.conductorId, data.fecha);
+        data.ordenRetiro = base; data.ordenEntrega = base+1;
+      } else if(!data.conductorId){
+        data.ordenRetiro = null; data.ordenEntrega = null;
+      }
+      const btn = f.querySelector('button[type=submit]');
+      const archivos = data.esEncomienda ? state.adjPendientes.editar.slice() : [];
+      if(btn){ btn.disabled = true; btn.textContent = archivos.length ? 'Subiendo adjuntos…' : 'Guardando…'; }
+      try{
+        if(archivos.length){
+          const nuevos = await subirAdjuntos(pid, data.fecha, archivos);
+          data.adjuntos = (p.adjuntos||[]).concat(nuevos);
+        }
+        await actualizarPedido(pid, data);
+      }catch(e){
+        console.error(e);
+        if(btn){ btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+        await customAlert('No se pudo guardar. Intenta de nuevo.');
+        return false;
+      }
+      state.adjPendientes.editar = [];
+      delete state.formDrafts['form-editar'];
       state.editando = null; render();
       return false;
     },
@@ -1500,8 +2014,14 @@
     async anular(pid){ if(await customConfirm('¿Anular este pedido? Queda registrado como Anulado, no se borra.')) await anularPedido(pid); },
     async mover(cid, idx, dir){ await moverLeg(cid, state.rutaFecha, parseInt(idx,10), parseInt(dir,10)); },
     async ordenarComuna(cid){ await ordenarPorComuna(cid, state.rutaFecha); },
-    async marcar(pid, tipo, estado){ await marcarEstado(pid, tipo, estado); },
-    async obs(pid, tipo, val){ await guardarObs(pid, tipo, val); },
+    async marcar(pid, tipo, estado){
+      if(state.role && state.role.type==='conductor' && drvSoloLectura()){ await customAlert('Este día es solo de lectura.'); return; }
+      await marcarEstado(pid, tipo, estado);
+    },
+    async obs(pid, tipo, val){
+      if(state.role && state.role.type==='conductor' && drvSoloLectura()) return;
+      await guardarObs(pid, tipo, val);
+    },
     async copiar(texto){
       try{
         await navigator.clipboard.writeText(texto);
@@ -1598,7 +2118,16 @@
     db.collection('pedidos').onSnapshot(snap=>{
       state.pedidos = snap.docs.map(d=>Object.assign({id:d.id}, d.data()));
       render();
+      if(state.role && state.role.type==='despachador') limpiarAdjuntosVencidos();
+      if(!state._limpiezaTimer){ state._limpiezaTimer = setInterval(()=>{ limpiezaHecha=false; if(state.role && state.role.type==='despachador') limpiarAdjuntosVencidos(); }, 6*3600*1000); }
     }, ()=>{ render(); });
+
+    db.collection('transportes').onSnapshot(snap=>{
+      state.transportes = snap.docs.map(d=>Object.assign({id:d.id}, d.data()));
+      state.transpReady = true;
+      seedIfEmpty();
+      render();
+    }, ()=>{ state.transpReady = true; render(); });
 
     db.collection('visitas').onSnapshot(snap=>{
       state.visitas = snap.docs.map(d=>Object.assign({id:d.id}, d.data()));
