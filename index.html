@@ -394,6 +394,18 @@
     if(p.encTelefono) partes.push('Fono: <a href="'+telUrl(p.encTelefono)+'">'+esc(p.encTelefono)+'</a>');
     return `<div class="enc-destino">${partes.join('<br>')}</div>`;
   }
+  function parseMonto(v){ const d = String(v==null?'':v).replace(/[^0-9]/g,''); return d ? parseInt(d,10) : null; }
+  function fmtCLP(n){ return (typeof n==='number' && !isNaN(n)) ? '$'+n.toLocaleString('es-CL') : ''; }
+  // resumen de encomiendas de una lista de pedidos (los anulados no suman)
+  function resumenEncomiendas(lista){
+    const enc = lista.filter(p=>p.esEncomienda);
+    const validas = enc.filter(p=>p.estadoEntrega!=='Anulado');
+    const total = validas.reduce((s,p)=>s+(typeof p.encMonto==='number'?p.encMonto:0),0);
+    const sinMonto = validas.filter(p=>typeof p.encMonto!=='number').length;
+    const porTransp = {};
+    validas.forEach(p=>{ const k = entregaDe(p).nombre||'(sin transporte)'; const o = porTransp[k] = porTransp[k]||{n:0,monto:0}; o.n++; o.monto += (typeof p.encMonto==='number'?p.encMonto:0); });
+    return {cantidad: validas.length, anuladas: enc.length-validas.length, total, sinMonto, porTransp};
+  }
   function fmtBytes(n){ return n>=1024*1024 ? (n/1024/1024).toFixed(1)+' MB' : Math.round(n/1024)+' KB'; }
   function adjVigente(a){ return a && !a.eliminado && (!a.expiraEn || a.expiraEn > new Date().toISOString()); }
   function adjuntosHtml(p, opts){
@@ -1085,6 +1097,10 @@
               ${fila('Recibe', esc(p.encRecibe||'')+(p.encRut?(' · RUT '+esc(p.encRut)):''))}
               ${fila('Teléfono', p.encTelefono ? ('<a href="'+telUrl(p.encTelefono)+'">'+esc(p.encTelefono)+'</a>') : '')}
             </div>
+            <div class="field-row">
+              ${fila('Monto factura / valor productos', fmtCLP(p.encMonto) || '<span style="color:var(--muted)">Sin monto</span>')}
+              <div></div>
+            </div>
             ${adjuntosHtml(p, {vacio:'Sin adjuntos.'})}
           </div>` : `
           <div class="field-row">
@@ -1228,7 +1244,10 @@
         </div>
         <div class="field-row">
           <div><label>Teléfono de quien recibe</label><input type="text" name="encTelefono" value="${v('encTelefono')}" placeholder="+569 1234 5678" ${dis}></div>
-          <div><label>Adjuntos (factura, boleta, ficha de envío)</label>
+          <div><label>Monto factura / valor productos ($)</label><input type="text" inputmode="numeric" name="encMonto" value="${p && typeof p.encMonto==='number' ? p.encMonto.toLocaleString('es-CL') : ''}" placeholder="Ej: 450.000" onblur="AppRuta.fmtMontoInput(this)" ${dis}></div>
+        </div>
+        <div class="field-row">
+          <div style="grid-column:1/-1;"><label>Adjuntos (factura, boleta, ficha de envío)</label>
             <input type="file" multiple accept=".pdf,.doc,.docx,image/*" onchange="AppRuta.elegirArchivos('${ctx}', this)">
           </div>
         </div>
@@ -1252,6 +1271,7 @@
       encRecibe: f.encRecibe.value.trim(),
       encRut: f.encRut.value.trim(),
       encTelefono: f.encTelefono.value.trim(),
+      encMonto: parseMonto(f.encMonto.value),
     };
   }
   function viewNuevoPedido(){
@@ -1398,6 +1418,8 @@
     });
     const resumen = Object.keys(totales).filter(k=>totales[k]>0)
       .map(k=>`<span class="estado-badge est-${k.replace(/\s+/g,'-')}" style="margin-right:6px;">${totales[k]} ${k}</span>`).join('');
+    const re = resumenEncomiendas(delMes);
+    const resumenEnc = re.cantidad ? `<div class="enc-destino" style="margin:0 0 14px;">📦 <strong>${re.cantidad} encomienda(s)</strong> este mes · Total vendido: <strong>${fmtCLP(re.total)}</strong>${re.sinMonto?` <span style="color:var(--muted);">(${re.sinMonto} sin monto ingresado)</span>`:''}</div>` : '';
     const filas = delMes.map(p=>`
       <tr class="hist-row" style="cursor:pointer;" onclick="AppRuta.verDetalle('${esc(p.id)}')">
         <td>PED-${String(p.numero).padStart(4,'0')}</td>
@@ -1416,6 +1438,7 @@
         <div style="align-self:flex-end;"><button type="button" class="btn btn-primary" onclick="AppRuta.exportarHistorialExcel()">⬇ Descargar Excel del mes</button></div>
       </div>
       <div style="margin-bottom:14px;">${resumen || '<span class="empty">Sin pedidos este mes.</span>'}</div>
+      ${resumenEnc}
       <div class="card" style="overflow-x:auto; padding:0;">
         <table style="width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap;">
           <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
@@ -1737,6 +1760,7 @@
         'Recibe': p.encRecibe||'',
         'RUT recibe': p.encRut||'',
         'Teléfono recibe': p.encTelefono||'',
+        'Monto encomienda ($)': (p.esEncomienda && typeof p.encMonto==='number') ? p.encMonto : '',
         'Conductor': condNombre(p.conductorId),
         'Estado retiro': p.estadoRetiro,
         'Estado entrega': p.estadoEntrega,
@@ -1746,10 +1770,36 @@
       const ws = XLSX.utils.json_to_sheet(rows);
       ws['!cols'] = [
         {wch:10},{wch:12},{wch:22},{wch:16},{wch:22},{wch:16},{wch:16},
-        {wch:26},{wch:16},{wch:26},{wch:11},{wch:18},{wch:30},{wch:20},{wch:14},{wch:16},{wch:18},{wch:14},{wch:14},{wch:24},{wch:24},
+        {wch:26},{wch:16},{wch:26},{wch:11},{wch:18},{wch:30},{wch:20},{wch:14},{wch:16},{wch:18},{wch:18},{wch:14},{wch:14},{wch:24},{wch:24},
       ];
+      // formato pesos en la columna de monto
+      const hdr = Object.keys(rows[0]);
+      const colMonto = hdr.indexOf('Monto encomienda ($)');
+      for(let r=1; r<=rows.length; r++){
+        const c = ws[XLSX.utils.encode_cell({r, c:colMonto})];
+        if(c && c.t==='n') c.z = '"$"#,##0';
+      }
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Pedidos');
+      // hoja resumen de encomiendas
+      const re = resumenEncomiendas(delMes);
+      const aoa = [
+        ['Resumen encomiendas '+mes],
+        [],
+        ['Pedidos por encomienda', re.cantidad],
+        ['Monto total vendido ($)', re.total],
+        ['Encomiendas sin monto ingresado', re.sinMonto],
+        ['Encomiendas anuladas (no suman)', re.anuladas],
+        ['Total pedidos del mes', delMes.length],
+        [],
+        ['Por transporte', 'Pedidos', 'Monto ($)'],
+      ];
+      Object.keys(re.porTransp).sort().forEach(k=> aoa.push([k, re.porTransp[k].n, re.porTransp[k].monto]));
+      const ws2 = XLSX.utils.aoa_to_sheet(aoa);
+      ws2['!cols'] = [{wch:34},{wch:12},{wch:16}];
+      ['B4'].forEach(a=>{ if(ws2[a]) ws2[a].z = '"$"#,##0'; });
+      for(let r=9; r<aoa.length; r++){ const c = ws2[XLSX.utils.encode_cell({r, c:2})]; if(c) c.z = '"$"#,##0'; }
+      XLSX.utils.book_append_sheet(wb, ws2, 'Resumen encomiendas');
       XLSX.writeFile(wb, 'pedidos_'+mes+'.xlsx');
     },
     async submitVisita(ev){
@@ -1848,6 +1898,7 @@
       if(b2){ b2.disabled=false; b2.textContent='Crear pedido'; }
       return false;
     },
+    fmtMontoInput(el){ const n = parseMonto(el.value); el.value = n==null ? '' : n.toLocaleString('es-CL'); },
     toggleEnc(chk){ aplicarModoEncomienda(chk.form, chk.checked); },
     async elegirArchivos(ctx, input){
       const files = Array.from(input.files||[]);
