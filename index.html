@@ -421,6 +421,59 @@
   .conforme{padding:10px 12px; border-radius:10px; border:1px solid var(--hecho); background:color-mix(in srgb, var(--hecho) 8%, var(--surface));}
   .inst-valor{font-family:'Archivo',sans-serif; font-weight:800; font-size:22px; color:var(--hecho);}
   #conf-holder .modal{max-height:92vh; overflow:auto;}
+
+  /* --- Instalaciones y pagos a maestros --- */
+  .home-card.hc-instalaciones{--hc:var(--inst);}
+  .kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;}
+  .kpi{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:2px;}
+  .kpi .k{font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+  .kpi .v{font-family:'Archivo',sans-serif; font-weight:800; font-size:19px;}
+  .kpi.ok .v{color:var(--hecho);} .kpi.pend .v{color:var(--problema);}
+  .pago-row{display:flex; gap:12px; justify-content:space-between; align-items:center; padding:12px 12px; border-bottom:1px solid var(--line); border-left:5px solid var(--line); flex-wrap:wrap;}
+  .pago-row:last-child{border-bottom:none;}
+  .pago-row.pendiente{border-left-color:var(--problema); background:color-mix(in srgb, var(--problema) 5%, transparent);}
+  .pago-row.pagado{border-left-color:var(--hecho); background:color-mix(in srgb, var(--hecho) 5%, transparent);}
+  .pago-main{flex:1 1 300px; min-width:0;}
+  .pago-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:2px;}
+  .pago-nums{display:flex; gap:14px; align-items:center; flex-wrap:wrap;}
+  .pago-nums > div{display:flex; flex-direction:column; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .pago-nums .k{font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase;}
+  .rojo{color:var(--problema);} .verde{color:var(--hecho);}
+  .pago-badge{font-size:12px; font-weight:800; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  .pago-badge.ok{background:var(--hecho); color:#fff;}
+  .pago-badge.pend{background:var(--problema); color:#fff;}
+  .pago-badge.sv{background:var(--surface-2); color:var(--muted); border:1px dashed var(--line);}
+  .sem-maestro{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:12px; border-left:6px solid var(--line);}
+  .sem-maestro.pend{border-left-color:var(--problema);} .sem-maestro.ok{border-left-color:var(--hecho);}
+  .sem-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .sem-tot{display:flex; gap:14px; flex-wrap:wrap; font-size:14px;}
+  .sem-tabla{width:100%; border-collapse:collapse; margin-bottom:10px; font-size:14px;}
+  .sem-tabla td{padding:7px 6px; border-top:1px solid var(--line); vertical-align:middle;}
+  .sem-tabla td.num{text-align:right; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .sem-tabla tr.pendiente td:first-child{box-shadow:inset 3px 0 0 var(--problema);}
+  .sem-tabla tr.pagado td:first-child{box-shadow:inset 3px 0 0 var(--hecho);}
+  .abonos{display:flex; flex-direction:column; gap:6px; margin:4px 0 6px;}
+  .abono{display:flex; align-items:center; gap:10px; padding:6px 10px; border-radius:8px; background:var(--surface-2); font-size:14px;}
+  @media (max-width:560px){ .kpi .v{font-size:16px;} .kpis{gap:6px;} }
+
+  .home-card.hc-pagos{--hc:var(--hecho);}
+  .pago-row.amarillo{border-left-color:var(--man); background:color-mix(in srgb, var(--man) 7%, transparent);}
+  .pago-badge.amb{background:var(--man); color:#231a00;}
+  .ambar{color:color-mix(in srgb, var(--man) 70%, #000);}
+
+  /* --- Vista mensual del maestro --- */
+  .sem-mae{margin-bottom:16px;}
+  .sem-mae-h{display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; padding:6px 2px 8px; font-weight:800; font-size:14px; border-bottom:2px solid var(--line); margin-bottom:8px;}
+  .sem-mae-t{font-weight:600; font-size:13.5px;}
+  .res-inst{background:var(--surface); border:1px solid var(--line); border-left:5px solid var(--inst); border-radius:10px; padding:10px 12px; margin-bottom:8px;}
+  .res-inst.term{border-left-color:var(--hecho); background:color-mix(in srgb, var(--hecho) 5%, var(--surface));}
+  .res-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .res-f{font-weight:800; font-size:13.5px; text-transform:capitalize;}
+  .res-monto{font-family:'Archivo',sans-serif; font-weight:800; font-size:17px;}
+  .res-tit{font-weight:700; font-size:15px; margin:4px 0 2px;}
+  .res-serv{font-size:13px; color:var(--ink); margin-top:3px; line-height:1.45;}
+  .res-serv b{color:var(--muted); font-weight:700;}
+  .res-pie{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;}
 </style>
 </head>
 <body>
@@ -521,6 +574,7 @@
     histVisitasMes: todayStr().slice(0,7),
     seededDist:false, seededCond:false,
     maestros: [], maesReady:false, editandoMaestro:null, maeModo:'prox',
+    instMes: null, instSemana: null, instFiltroMaestro:'', instFiltroEstado:'', pagoPid:null,
     lastPedidoNumero: null,
     editando: null,
     editandoDist: null,
@@ -1143,7 +1197,7 @@
 
   // ---------- render ----------
   // Conserva lo que se está escribiendo en los formularios cuando llegan cambios en vivo (re-render)
-  const FORMS_BORRADOR = ['form-pedido','form-editar','form-transp','form-editar-transp','form-visita','form-editar-visita','form-maestro','form-editar-maestro'];
+  const FORMS_BORRADOR = ['form-pedido','form-editar','form-transp','form-editar-transp','form-visita','form-editar-visita','form-maestro','form-editar-maestro','form-pago','form-cobro'];
   function guardarBorradores(){
     const act = document.activeElement;
     state._foco = null;
@@ -1287,6 +1341,18 @@
       holder = document.createElement('div');
       holder.id = 'modal-holder';
       document.body.appendChild(holder);
+    }
+    if(state.cobroPid){
+      const p = byId(state.pedidos, state.cobroPid);
+      if(!p){ state.cobroPid = null; holder.innerHTML=''; return; }
+      holder.innerHTML = cobroModalHtml(p);
+      return;
+    }
+    if(state.pagoPid){
+      const p = byId(state.pedidos, state.pagoPid);
+      if(!p){ state.pagoPid = null; holder.innerHTML=''; return; }
+      holder.innerHTML = pagoModalHtml(p);
+      return;
     }
     if(state.editandoDist){
       const d = byId(state.distribuidores, state.editandoDist);
@@ -1539,11 +1605,14 @@
   const SECCIONES = {
     pedidos: {label:'📦 Pedidos', tabs:[['nuevo','Nuevo pedido'],['ruta','Ruta del día'],['hist','Historial y Excel']]},
     visitas: {label:'📅 Visitas', tabs:[]},
+    instalaciones: {label:'🔧 Instalaciones', tabs:[], unica:'inst_mes'},
+    pagos: {label:'💵 Pagos maestros', tabs:[], unica:'inst_sem'},
     config:  {label:'⚙ Configuración', tabs:[['dist','Distribuidores'],['cond','Conductores'],['enc','Encomienda'],['maes','👷 Maestros'],['apariencia','🎨 Colores']]},
   };
   function seccionDeTab(t){
     if(t==='visitas') return 'visitas';
     if(t==='home') return 'home';
+    const u = Object.keys(SECCIONES).find(k=>SECCIONES[k].unica===t); if(u) return u;
     return Object.keys(SECCIONES).find(k=>SECCIONES[k].tabs.some(x=>x[0]===t)) || 'pedidos';
   }
   function renderDespachador(root){
@@ -1568,6 +1637,13 @@
             `<span class="hc-stats"><b>${pedHoy.length}</b> hoy · <b>${pendHoy}</b> en curso${sinAsignar?` · <b class="warn">${sinAsignar}</b> sin conductor`:''}</span>`)}
           ${card('visitas','📅','Visitas','Agenda, cotizaciones aceptadas e instalaciones',
             `<span class="hc-stats"><b>${visHoy}</b> hoy${pendVis?` · <b class="warn">${pendVis}</b> por accionar`:''}</span>`)}
+          ${(()=>{ const mesAct = todayStr().slice(0,7); const lm = instalacionesVigentes().filter(p=>fechaInst(p).slice(0,7)===mesAct); const t = sumarCobros(lm);
+            const cob = instalacionesVigentes().filter(p=>cobroInfo(p).estado==='cobrar').length;
+            return card('instalaciones','🔧','Instalaciones','Clientes, valor de cada proyecto, abonos y saldos',
+              `<span class="hc-stats"><b>${lm.length}</b> este mes · abonado <b style="color:var(--hecho)">${fmtCLP(t.abonado)}</b>${t.saldo?` · por cobrar <b>${fmtCLP(t.saldo)}</b>`:''}${cob?` · <b class="warn">${cob}</b> terminada(s) sin pago`:''}</span>`); })()}
+          ${(()=>{ const ini = inicioSemana(todayStr()), fin = sumarDias(ini,6); const ls = instalacionesVigentes().filter(p=>fechaInst(p)>=ini && fechaInst(p)<=fin); const t = sumar(ls);
+            return card('pagos','💵','Pagos maestros','Valor pactado de cada trabajo y total semanal por maestro',
+              `<span class="hc-stats">Esta semana: <b>${fmtCLP(t.valor)}</b>${t.saldo?` · <b class="warn">${fmtCLP(t.saldo)}</b> por pagar`:(ls.length?' · <b style="color:var(--hecho)">pagado</b>':'')}</span>`); })()}
           ${card('config','⚙','Configuración','Distribuidores · Conductores · Maestros · Encomienda · Colores','')}
         </div>
       </div>`;
@@ -1593,6 +1669,8 @@
     else if(state.tab==='enc') panel.innerHTML = viewTransportes();
     else if(state.tab==='apariencia') panel.innerHTML = viewApariencia();
     else if(state.tab==='maes') panel.innerHTML = viewMaestros();
+    else if(state.tab==='inst_mes') panel.innerHTML = viewInstClientes();
+    else if(state.tab==='inst_sem') panel.innerHTML = viewInstSemana();
     else panel.innerHTML = viewConductores();
   }
 
@@ -2299,17 +2377,15 @@
   // Plantillas de servicios por tipo de instalación. def:true = viene marcado por defecto.
   const TIPOS_INST = {
     flotante: {label:'Piso flotante', serv:[
-      ['Levante de piso antiguo',1],['Movimiento de muebles',1],['Retiro de basura',1],['Instalación de guardapolvos',1],
-      ['Instalación de espuma / bajo piso',0],['Instalación de cubrejuntas o umbrales',0],['Corte de puertas',0]]},
-    vinilico: {label:'Piso vinílico (SPC / rollo)', serv:[
-      ['Levante de piso antiguo',1],['Nivelación de piso',0],['Movimiento de muebles',1],['Retiro de basura',1],
-      ['Instalación de guardapolvos',1],['Instalación de cubrejuntas o umbrales',0],['Corte de puertas',0]]},
-    alfombra: {label:'Alfombra', serv:[
-      ['Levante de alfombra antigua',1],['Movimiento de muebles',1],['Retiro de basura',1],['Instalación de junquillos',1],
-      ['Instalación de bajo alfombra',0],['Instalación de cubrejuntas',0]]},
+      ['Levante de piso antiguo',1],['Movimiento de muebles',1],['Retiro de basura',1],['Instalación de guardapolvos',1],['Nivelación de superficies',0]]},
+    vinilico: {label:'Piso vinílico SPC', serv:[
+      ['Levante de piso antiguo',1],['Movimiento de muebles',1],['Retiro de basura',1],['Instalación de guardapolvos',1],['Nivelación de superficies',0]]},
+    alfombra: {label:'Alfombra muro a muro', serv:[
+      ['Levante de alfombra antigua',1],['Movimiento de muebles',1],['Retiro de basura',1],['Instalación de junquillos',1]]},
+    alfombra_mod: {label:'Alfombra modular', serv:[
+      ['Levante de alfombra antigua',1],['Movimiento de muebles',1],['Retiro de basura',1],['Instalación de junquillos',1]]},
     pasto: {label:'Pasto sintético', serv:[
-      ['Preparación de terreno',1],['Retiro de basura',1],['Instalación de malla antimaleza',0],
-      ['Relleno de arena / sílice',0],['Instalación de bordes o perímetro',0]]},
+      ['Preparación de terreno full',0],['Preparación de terreno sin compactar',0],['Retiro de basura',1],['Instalación de solerillas',0]]},
     otro: {label:'Otro trabajo', serv:[['Movimiento de muebles',0],['Retiro de basura',0]]},
   };
   const ESTADOS_INST = ['Pendiente','En curso','Terminada','Con problema'];
@@ -2338,8 +2414,11 @@
     const tipoOpts = Object.keys(TIPOS_INST).map(k=>`<option value="${k}" ${k===tipoSel?'selected':''}>${esc(TIPOS_INST[k].label)}</option>`).join('');
     const grupos = Object.keys(TIPOS_INST).map(k=>{
       const usar = (p && i.tipo===k && Array.isArray(i.servicios)) ? i.servicios : null;
+      const base = TIPOS_INST[k].serv.map(x=>x[0]);
+      const extras = usar ? usar.filter(x=>!base.includes(x)) : [];   // servicios guardados antes que ya no están en la lista
       return `<div class="serv-grupo ${k===tipoSel?'':'oculto'}" data-tipo="${k}">
-        ${TIPOS_INST[k].serv.map(([s,def],n)=>`<label class="serv-chk"><input type="checkbox" name="serv_${k}_${n}" ${(usar ? usar.includes(s) : def) ? 'checked':''}> ${esc(s)}</label>`).join('')}
+        ${TIPOS_INST[k].serv.map(([s,def],n)=>`<label class="serv-chk"><input type="checkbox" name="serv_${k}_${n}" data-s="${esc(s)}" ${(usar ? usar.includes(s) : def) ? 'checked':''}> ${esc(s)}</label>`).join('')}
+        ${extras.map((s,n)=>`<label class="serv-chk"><input type="checkbox" name="servx_${k}_${n}" data-s="${esc(s)}" checked> ${esc(s)}</label>`).join('')}
       </div>`;
     }).join('');
     return `<div class="inst-box ${on?'':'oculto'}">
@@ -2369,9 +2448,10 @@
         <div style="grid-column:1/-1;"><label>Descripción / otros servicios</label><textarea name="instDescripcion" placeholder="Detalle del trabajo, zonas (living, 2 dormitorios), cuidados especiales…">${esc(i.descripcion||'')}</textarea></div>
       </div>
       <div class="field-row">
-        <div><label>Valor total acordado por el trabajo ($)</label><input type="text" inputmode="numeric" name="instValor" value="${typeof i.valor==='number' ? i.valor.toLocaleString('es-CL') : ''}" placeholder="Ej: 180.000" onblur="AppRuta.fmtMontoInput(this)"></div>
-        <div><label>&nbsp;</label><label class="serv-chk"><input type="checkbox" name="instValorVisible" ${i.valorVisible?'checked':''}> Mostrar este valor al maestro</label></div>
+        <div><label>Valor total del proyecto — cliente ($)</label><input type="text" inputmode="numeric" name="instValorCliente" value="${typeof i.valorCliente==='number' ? i.valorCliente.toLocaleString('es-CL') : ''}" placeholder="Ej: 650.000" onblur="AppRuta.fmtMontoInput(this)"></div>
+        <div><label>Valor pactado con el maestro ($)</label><input type="text" inputmode="numeric" name="instValor" value="${typeof i.valor==='number' ? i.valor.toLocaleString('es-CL') : ''}" placeholder="Ej: 180.000" onblur="AppRuta.fmtMontoInput(this)"></div>
       </div>
+      <div class="ro-note" style="margin:-4px 0 10px;">El maestro ve el valor pactado con él y su total semanal en su link.</div>
       <label>Fotos del lugar</label>
       ${p ? fotosHtml(p, 'lugar', {quitar:true}) : ''}
       <div class="fotos">
@@ -2385,7 +2465,7 @@
   function datosInstDeForm(f, p){
     if(!f.esInstalacion.checked) return {esInstalacion:false};
     const tipo = f.instTipo.value;
-    const servicios = (TIPOS_INST[tipo]||{serv:[]}).serv.map(([s],n)=> (f.elements['serv_'+tipo+'_'+n]||{}).checked ? s : null).filter(Boolean);
+    const servicios = Array.from(f.querySelectorAll(`.serv-grupo[data-tipo="${tipo}"] input[type=checkbox]:checked`)).map(x=>x.dataset.s).filter(Boolean);
     const prev = p ? instDe(p) : {};
     return {esInstalacion:true, inst:{
       maestroId: f.instMaestro.value,
@@ -2399,7 +2479,10 @@
       lugar: f.instLugar.value.trim(),
       descripcion: f.instDescripcion.value.trim(),
       valor: parseMonto(f.instValor.value),
-      valorVisible: !!f.instValorVisible.checked,
+      valorVisible: true,
+      valorCliente: parseMonto(f.instValorCliente.value),
+      abonosCliente: prev.abonosCliente || [],
+      pagos: prev.pagos || [],
       fotos: prev.fotos || [],
       conformidad: prev.conformidad || null,
       estado: prev.estado || 'Pendiente',
@@ -2425,7 +2508,7 @@
       </div>
       ${(i.servicios&&i.servicios.length) ? `<ul class="serv-list">${i.servicios.map(s=>`<li>✓ ${esc(s)}</li>`).join('')}</ul>` : ''}
       ${i.descripcion?`<div class="ro-note" style="color:var(--ink);">${esc(i.descripcion)}</div>`:''}
-      ${typeof i.valor==='number' ? `<div class="stop-meta" style="font-size:14px;margin-top:6px;">💰 Valor acordado: <strong>${fmtCLP(i.valor)}</strong> <span class="ro-note" style="margin:0;">(${i.valorVisible?'visible para el maestro':'solo oficina'})</span></div>` : ''}
+      ${typeof i.valor==='number' ? `<div class="stop-meta" style="font-size:14px;margin-top:6px;">👷 Valor pactado con el maestro: <strong>${fmtCLP(i.valor)}</strong> <span class="ro-note" style="margin:0;">(visible para el maestro)</span></div>` : ''}
       ${i.obs?`<div class="ro-note">Obs. del maestro: ${esc(i.obs)}</div>`:''}
       ${fotosDetalleHtml(p, {subirLugar:true, quitar:true})}
       <div class="inst-sec">Recepción conforme</div>
@@ -2476,21 +2559,89 @@
   function renderMaestro(root){
     const mid = state.role.id;
     const hoy = todayStr();
-    const modo = state.maeModo || 'prox';
-    const todas = instalacionesDeMaestro(mid).map(p=>({p, f: instDe(p).fecha || p.fecha}));
-    const prox = todas.filter(x=> x.f>=hoy || (instDe(x.p).estado!=='Terminada' && x.f<hoy)).sort((a,b)=>(a.f+(instDe(a.p).hora||'')).localeCompare(b.f+(instDe(b.p).hora||'')));
-    const ant = todas.filter(x=> !prox.includes(x)).sort((a,b)=>b.f.localeCompare(a.f));
-    const lista = modo==='prox' ? prox : ant;
+    const modo = state.maeModo==='ant' ? 'mes' : (state.maeModo || 'prox');
+    const todas = instalacionesDeMaestro(mid).map(p=>({p, f: fechaInst(p)}));
+    const prox = todas.filter(x=> instDe(x.p).estado!=='Terminada').sort((a,b)=>(a.f+(instDe(a.p).hora||'')).localeCompare(b.f+(instDe(b.p).hora||'')));
     root.innerHTML = `<div class="app">
       ${topbar(state.role.nombre)}
       <div class="seg seg-full" style="margin-top:14px;">
-        <button class="${modo==='prox'?'on':''}" onclick="AppRuta.maeModo('prox')">🔧 Próximas (${prox.length})</button>
-        <button class="${modo==='ant'?'on':''}" onclick="AppRuta.maeModo('ant')">✓ Terminadas (${ant.length})</button>
+        <button class="${modo==='prox'?'on':''}" onclick="AppRuta.maeModo('prox')">🔧 Por hacer (${prox.length})</button>
+        <button class="${modo==='mes'?'on':''}" onclick="AppRuta.maeModo('mes')">📅 Mis instalaciones del mes</button>
       </div>
-      <div class="drv-head" style="margin-top:14px;"><h2>${modo==='prox'?'Tus instalaciones':'Instalaciones terminadas'}</h2>
-        <div class="sub">${modo==='prox'?'Revisa el trabajo antes de ir y marca el avance.':'Historial de trabajos cerrados.'}</div></div>
-      ${lista.length ? lista.map(x=>renderInstCard(x.p, x.f)).join('') : `<div class="empty">${modo==='prox'?'No tienes instalaciones asignadas por ahora.':'Aún no hay instalaciones terminadas.'}</div>`}
+      ${modo==='prox' ? `
+        <div class="drv-head" style="margin-top:14px;"><h2>Tus instalaciones</h2><div class="sub">Revisa el trabajo antes de ir y marca el avance.</div></div>
+        ${prox.length ? prox.map(x=>renderInstCard(x.p, x.f)).join('') : `<div class="empty">No tienes instalaciones pendientes por ahora.</div>`}`
+      : maestroMesHtml(mid)}
     </div>`;
+  }
+  // resumen compacto de una instalación (para la vista mensual del maestro)
+  function instResumenBanner(p){
+    const i = instDe(p); const t = TIPOS_INST[i.tipo]; const pi = pagoInfo(p);
+    const base = t ? t.serv.map(x=>x[0]) : [];
+    const principales = (i.servicios||[]).filter(x=>base.includes(x));
+    const extra = (i.servicios||[]).filter(x=>!base.includes(x));
+    const adicionales = extra.concat(i.descripcion ? [i.descripcion] : []);
+    const term = i.estado==='Terminada';
+    const fotos = (i.fotos||[]).filter(f=>f.etapa!=='lugar' && adjVigente(f)).length;
+    return `<div class="res-inst ${term?'term':''}" ${term?'':`onclick="AppRuta.maeModo('prox')" style="cursor:pointer"`}>
+      <div class="res-top">
+        <span class="res-f">${fmtFechaLarga(fechaInst(p))}</span>
+        <span class="estado-inst ${estadoInstCls(i.estado)}">${term?'✓ ':''}${esc(i.estado||'Pendiente')}</span>
+        <span style="flex:1"></span>
+        <span class="res-monto">${pi.valor==null?'<span class="ro-note" style="margin:0;">sin valor</span>':fmtCLP(pi.valor)}</span>
+      </div>
+      <div class="res-tit">${esc(t?t.label:'Instalación')}${i.m2?(' · '+esc(i.m2)+' m²'):''}</div>
+      <div class="stop-meta">📍 ${esc([p.direccionEntrega,p.comunaEntrega].filter(Boolean).join(', '))} · ${esc(p.cliente||'')}</div>
+      ${principales.length?`<div class="res-serv"><b>Servicios:</b> ${principales.map(esc).join(' · ')}</div>`:''}
+      ${adicionales.length?`<div class="res-serv"><b>Adicionales:</b> ${adicionales.map(esc).join(' · ')}</div>`:''}
+      <div class="res-pie">
+        ${pi.valor!=null ? (pi.estado==='pagado' ? '<span class="pago-badge ok">✓ Pagado</span>' : `<span class="pago-badge pend">Por pagar ${fmtCLP(pi.saldo)}</span>`) : ''}
+        ${i.conformidad?'<span class="ro-note" style="margin:0;">✍ Conformidad firmada</span>':''}
+        ${fotos?`<span class="ro-note" style="margin:0;">📷 ${fotos} foto(s)</span>`:''}
+      </div>
+    </div>`;
+  }
+  function maestroMesHtml(mid){
+    const mes = state.maeMes || todayStr().slice(0,7);
+    const [y,m] = mes.split('-').map(Number);
+    const todas = instalacionesDeMaestro(mid);
+    const delMes = todas.filter(p=>fechaInst(p).slice(0,7)===mes);
+    const tm = sumar(delMes);
+    const term = delMes.filter(p=>instDe(p).estado==='Terminada').length;
+    // semanas (lunes a domingo) que tocan el mes
+    const primero = `${mes}-01`;
+    const ultimo = isoDe(new Date(y, m, 0));
+    const semanas = [];
+    for(let ini = inicioSemana(primero); ini <= ultimo; ini = sumarDias(ini,7)) semanas.push(ini);
+    const bloques = semanas.map(ini=>{
+      const fin = sumarDias(ini,6);
+      const semTodas = todas.filter(p=>fechaInst(p)>=ini && fechaInst(p)<=fin);
+      const enMes = semTodas.filter(p=>fechaInst(p).slice(0,7)===mes).sort((a,b)=>fechaInst(a).localeCompare(fechaInst(b)));
+      if(!enMes.length) return '';
+      const ts = sumar(semTodas);
+      const dI = fechaDe(ini), dF = fechaDe(fin);
+      return `<div class="sem-mae">
+        <div class="sem-mae-h">
+          <span>Semana ${dI.getDate()} ${MESES_C[dI.getMonth()]} – ${dF.getDate()} ${MESES_C[dF.getMonth()]}</span>
+          <span class="sem-mae-t">Total semana <b>${fmtCLP(ts.valor)}</b>${ts.saldo?` · <span class="rojo">por pagar ${fmtCLP(ts.saldo)}</span>`:(ts.valor?' · <span class="verde">pagado</span>':'')}</span>
+        </div>
+        ${enMes.map(instResumenBanner).join('')}
+      </div>`;
+    }).join('');
+    return `<div class="drv-head" style="margin-top:14px;">
+        <div class="fecha-nav" style="margin-top:0;">
+          <button class="icon-btn" title="Mes anterior" onclick="AppRuta.maeMes(-1)">◀</button>
+          <strong class="agenda-tit">${MESES_L[m-1]} ${y}</strong>
+          <button class="icon-btn" title="Mes siguiente" onclick="AppRuta.maeMes(1)">▶</button>
+          ${mes!==todayStr().slice(0,7)?`<button class="btn btn-ghost btn-small" onclick="AppRuta.maeMes(0)">Este mes</button>`:''}
+        </div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><span class="k">Trabajos</span><span class="v">${delMes.length} <small style="font-size:13px;color:var(--muted);font-weight:600;">${term} terminados</small></span></div>
+        <div class="kpi ok"><span class="k">Pactado del mes</span><span class="v">${fmtCLP(tm.valor)}</span></div>
+        <div class="kpi ${tm.saldo?'pend':'ok'}"><span class="k">Por pagar</span><span class="v">${fmtCLP(tm.saldo)}</span></div>
+      </div>
+      ${bloques || '<div class="empty">No tienes instalaciones en este mes.</div>'}`;
   }
   function renderInstCard(p, fecha){
     const i = instDe(p);
@@ -2511,7 +2662,7 @@
       ${i.producto?`<div class="stop-meta">${esc(i.producto)}</div>`:''}
       ${(i.servicios&&i.servicios.length)?`<div class="inst-sec">Servicios</div><ul class="serv-list">${i.servicios.map(s=>`<li>✓ ${esc(s)}</li>`).join('')}</ul>`:''}
       ${i.descripcion?`<div class="inst-sec">Descripción</div><div class="stop-meta" style="color:var(--ink);">${esc(i.descripcion)}</div>`:''}
-      ${(i.valorVisible && typeof i.valor==='number') ? `<div class="inst-sec">Valor acordado</div><div class="inst-valor">${fmtCLP(i.valor)}</div>` : ''}
+      ${(typeof i.valor==='number') ? `<div class="inst-sec">Valor pactado</div><div class="inst-valor">${fmtCLP(i.valor)}</div>` : ''}
       ${items.length?`<div class="inst-sec">Material</div>${itemsHtml(items)}<div class="ro-note" style="margin-top:2px;">${matTxt}</div>`:`<div class="ro-note">${matTxt}</div>`}
       <div class="inst-sec">Cliente</div>
       <div class="stop-meta" style="color:var(--ink);">
@@ -2700,6 +2851,283 @@
     out.width = w; out.height = h; const c = out.getContext('2d');
     c.fillStyle = '#fff'; c.fillRect(0,0,w,h); c.drawImage(cv,0,0,w,h);
     return out.toDataURL('image/png');
+  }
+
+  // ---------- sección INSTALACIONES: pagos a maestros ----------
+  function fechaInst(p){ return instDe(p).fecha || p.fecha || ''; }
+  function pagosDe(p){ return Array.isArray(instDe(p).pagos) ? instDe(p).pagos : []; }
+  function pagoInfo(p){
+    const i = instDe(p);
+    const valor = typeof i.valor==='number' ? i.valor : null;
+    const abonado = pagosDe(p).reduce((a,x)=>a+(Number(x.monto)||0), 0);
+    const saldo = valor==null ? null : Math.max(0, valor - abonado);
+    const estado = valor==null ? 'sinvalor' : (saldo<=0 ? 'pagado' : 'pendiente');
+    return {valor, abonado, saldo, estado};
+  }
+  function instalacionesVigentes(){
+    return state.pedidos.filter(p=>p.esInstalacion && p.estadoEntrega!=='Anulado');
+  }
+  function pagoBadge(pi){
+    if(pi.estado==='pagado') return `<span class="pago-badge ok">✓ Pagado</span>`;
+    if(pi.estado==='pendiente') return `<span class="pago-badge pend">Pendiente ${fmtCLP(pi.saldo)}</span>`;
+    return `<span class="pago-badge sv">Sin valor</span>`;
+  }
+  function sumar(lista){
+    return lista.reduce((a,p)=>{ const pi = pagoInfo(p); if(pi.valor!=null){ a.valor+=pi.valor; a.saldo+=pi.saldo; } a.abonado+=pi.abonado; if(pi.estado==='sinvalor') a.sinValor++; if(pi.estado==='pendiente') a.pend++; if(pi.estado==='pagado') a.pag++; return a; }, {valor:0, abonado:0, saldo:0, sinValor:0, pend:0, pag:0});
+  }
+  function kpisHtml(t){
+    return `<div class="kpis">
+      <div class="kpi"><span class="k">Total pactado</span><span class="v">${fmtCLP(t.valor)}</span></div>
+      <div class="kpi ok"><span class="k">Pagado</span><span class="v">${fmtCLP(t.abonado)}</span></div>
+      <div class="kpi pend"><span class="k">Saldo pendiente</span><span class="v">${fmtCLP(t.saldo)}</span></div>
+    </div>
+    ${t.sinValor ? `<div class="banner warn">${t.sinValor} instalación(es) sin valor pactado con el maestro: ábrelas con "💰 Pago" para ingresarlo.</div>` : ''}`;
+  }
+  function filaInstPago(p){
+    const i = instDe(p); const pi = pagoInfo(p);
+    const t = TIPOS_INST[i.tipo];
+    return `<div class="pago-row ${pi.estado}">
+      <div class="pago-main">
+        <div class="pago-top"><strong>${esc(p.cliente||'')}</strong> ${pagoBadge(pi)}</div>
+        <div class="stop-meta">
+          ${fmtFechaLarga(fechaInst(p))} · ${esc(t?t.label:'Instalación')}${i.m2?(' · '+esc(i.m2)+' m²'):''} · 👷 ${esc(maestroNombre(i.maestroId)||'sin maestro')}<br>
+          ${esc([p.direccionEntrega,p.comunaEntrega].filter(Boolean).join(', '))}${p.telefonoCliente?(' · ☎ '+esc(p.telefonoCliente)):''} · <span class="ro-note" style="margin:0;">${pedIdLabel(p.numero)} · ${esc(i.estado||'Pendiente')}</span>
+        </div>
+      </div>
+      <div class="pago-nums">
+        <div><span class="k">Valor</span><span>${pi.valor==null?'—':fmtCLP(pi.valor)}</span></div>
+        <div><span class="k">Abonado</span><span>${fmtCLP(pi.abonado)}</span></div>
+        <div><span class="k">Saldo</span><span class="${pi.estado==='pendiente'?'rojo':(pi.estado==='pagado'?'verde':'')}">${pi.saldo==null?'—':fmtCLP(pi.saldo)}</span></div>
+        <button class="btn btn-ghost btn-small" onclick="AppRuta.abrirPago('${p.id}')">💰 Pago</button>
+      </div>
+    </div>`;
+  }
+  function viewInstMes(){
+    const mes = state.instMes || todayStr().slice(0,7);
+    const filtroM = state.instFiltroMaestro || '';
+    const filtroE = state.instFiltroEstado || '';
+    let lista = instalacionesVigentes().filter(p=>fechaInst(p).slice(0,7)===mes);
+    if(filtroM) lista = lista.filter(p=>(instDe(p).maestroId||'')===filtroM);
+    const totales = sumar(lista);
+    if(filtroE) lista = lista.filter(p=>pagoInfo(p).estado===filtroE);
+    lista.sort((a,b)=>fechaInst(a).localeCompare(fechaInst(b)));
+    const [y,m] = mes.split('-').map(Number);
+    const maesOpts = `<option value="">Todos los maestros</option>` + state.maestros.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(x=>`<option value="${esc(x.id)}" ${x.id===filtroM?'selected':''}>${esc(x.nombre)}</option>`).join('');
+    return `<div class="ruta-controls">
+        <div><label>Mes</label><div class="fecha-nav" style="margin-top:0;">
+          <button class="icon-btn" title="Mes anterior" onclick="AppRuta.instMover(-1)">◀</button>
+          <strong class="agenda-tit">${MESES_L[m-1]} ${y}</strong>
+          <button class="icon-btn" title="Mes siguiente" onclick="AppRuta.instMover(1)">▶</button>
+        </div></div>
+        <div><label>Maestro</label><select onchange="AppRuta.instFiltro('maestro', this.value)">${maesOpts}</select></div>
+        <div><label>Pago</label><select onchange="AppRuta.instFiltro('estado', this.value)">
+          <option value="" ${!filtroE?'selected':''}>Todos</option>
+          <option value="pendiente" ${filtroE==='pendiente'?'selected':''}>Pendientes (${totales.pend})</option>
+          <option value="pagado" ${filtroE==='pagado'?'selected':''}>Pagadas (${totales.pag})</option>
+          <option value="sinvalor" ${filtroE==='sinvalor'?'selected':''}>Sin valor (${totales.sinValor})</option>
+        </select></div>
+      </div>
+      ${kpisHtml(totales)}
+      <div class="card">${lista.length ? lista.map(filaInstPago).join('') : '<div class="empty">Sin instalaciones para este filtro.</div>'}</div>`;
+  }
+  function viewInstSemana(){
+    const ini = inicioSemana(state.instSemana || todayStr());
+    const fin = sumarDias(ini, 6);
+    const lista = instalacionesVigentes().filter(p=>{ const f = fechaInst(p); return f>=ini && f<=fin; });
+    const por = {};
+    lista.forEach(p=>{ const k = instDe(p).maestroId || ''; (por[k] = por[k] || []).push(p); });
+    const total = sumar(lista);
+    const bloques = Object.keys(por).sort((a,b)=>(maestroNombre(a)||'zzz').localeCompare(maestroNombre(b)||'zzz')).map(mid=>{
+      const ps = por[mid].sort((a,b)=>fechaInst(a).localeCompare(fechaInst(b)));
+      const t = sumar(ps);
+      const m = byId(state.maestros, mid);
+      return `<div class="sem-maestro ${t.saldo>0?'pend':(t.valor>0?'ok':'')}">
+        <div class="sem-head">
+          <div><strong>👷 ${esc(m?m.nombre:'Sin maestro asignado')}</strong><div class="ro-note" style="margin:0;">${ps.length} trabajo(s)${m&&m.telefono?(' · '+esc(m.telefono)):''}</div></div>
+          <div class="sem-tot">
+            <span>Total <b>${fmtCLP(t.valor)}</b></span>
+            <span class="verde">Pagado <b>${fmtCLP(t.abonado)}</b></span>
+            <span class="${t.saldo>0?'rojo':'verde'}">A pagar <b>${fmtCLP(t.saldo)}</b></span>
+          </div>
+        </div>
+        <table class="sem-tabla"><tbody>
+          ${ps.map(p=>{ const pi = pagoInfo(p); const i = instDe(p); const tt = TIPOS_INST[i.tipo]; return `<tr class="${pi.estado}">
+            <td>${fmtFechaLarga(fechaInst(p))}</td>
+            <td>${esc(p.cliente||'')}<div class="ro-note" style="margin:0;">${esc(tt?tt.label:'')}${i.m2?(' · '+esc(i.m2)+' m²'):''}</div></td>
+            <td class="num">${pi.valor==null?'—':fmtCLP(pi.valor)}</td>
+            <td>${pagoBadge(pi)}</td>
+            <td><button class="btn btn-ghost btn-small" onclick="AppRuta.abrirPago('${p.id}')">💰</button></td>
+          </tr>`; }).join('')}
+        </tbody></table>
+        ${(m && t.saldo>0) ? `<button class="btn btn-primary btn-small" onclick="AppRuta.pagarSemana('${mid}','${ini}')">✓ Registrar pago de la semana (${fmtCLP(t.saldo)})</button>` : ''}
+      </div>`;
+    }).join('');
+    const dI = fechaDe(ini), dF = fechaDe(fin);
+    return `<div class="ruta-controls">
+        <div><label>Semana</label><div class="fecha-nav" style="margin-top:0;">
+          <button class="icon-btn" title="Semana anterior" onclick="AppRuta.semMover(-1)">◀</button>
+          <strong class="agenda-tit">${dI.getDate()} ${MESES_C[dI.getMonth()]} – ${dF.getDate()} ${MESES_C[dF.getMonth()]}</strong>
+          <button class="icon-btn" title="Semana siguiente" onclick="AppRuta.semMover(1)">▶</button>
+          ${ini!==inicioSemana(todayStr()) ? `<button class="btn btn-ghost btn-small" onclick="AppRuta.semHoy()">Esta semana</button>` : ''}
+        </div></div>
+      </div>
+      <div class="ro-note" style="margin:-6px 0 12px;">Trabajos agrupados por fecha de instalación (lunes a domingo).</div>
+      ${kpisHtml(total)}
+      ${bloques || '<div class="card"><div class="empty">Sin instalaciones esta semana.</div></div>'}`;
+  }
+  function pagoModalHtml(p){
+    const pi = pagoInfo(p); const i = instDe(p);
+    const pagos = pagosDe(p);
+    return `<div class="modal-backdrop" onclick="if(event.target===this) AppRuta.cerrarPago()">
+      <div class="modal" style="max-width:520px;">
+        <h3>Pago al maestro</h3>
+        <p class="ro-note" style="margin-top:-6px;">${esc(p.cliente||'')} · ${esc(instResumen(p))} · 👷 ${esc(maestroNombre(i.maestroId)||'sin maestro')}</p>
+        <div class="kpis" style="margin:10px 0;">
+          <div class="kpi"><span class="k">Valor</span><span class="v">${pi.valor==null?'—':fmtCLP(pi.valor)}</span></div>
+          <div class="kpi ok"><span class="k">Abonado</span><span class="v">${fmtCLP(pi.abonado)}</span></div>
+          <div class="kpi ${pi.estado==='pagado'?'ok':'pend'}"><span class="k">Saldo</span><span class="v">${pi.saldo==null?'—':fmtCLP(pi.saldo)}</span></div>
+        </div>
+        <form id="form-pago" onsubmit="return AppRuta.guardarPago(event,'${p.id}')">
+          <div class="field-row">
+            <div><label>Valor pactado con el maestro ($)</label><input type="text" inputmode="numeric" name="valor" value="${pi.valor==null?'':pi.valor.toLocaleString('es-CL')}" onblur="AppRuta.fmtMontoInput(this)" placeholder="Ej: 180.000"></div>
+            <div><label>&nbsp;</label><button type="button" class="btn btn-ghost" onclick="AppRuta.guardarValor('${p.id}')">Guardar valor</button></div>
+          </div>
+          ${pagos.length ? `<label>Abonos registrados</label><div class="abonos">${pagos.map((x,n)=>`<div class="abono"><span>${fmtFechaLarga(x.fecha)}</span><b>${fmtCLP(Number(x.monto)||0)}</b><span class="ro-note" style="margin:0;flex:1;">${esc(x.nota||'')}</span><button type="button" class="icon-btn" title="Quitar abono" onclick="AppRuta.quitarAbono('${p.id}',${n})">✕</button></div>`).join('')}</div>` : ''}
+          ${pi.estado!=='pagado' ? `
+          <label style="margin-top:10px;">Registrar abono</label>
+          <div class="field-row">
+            <div><label>Monto ($)</label><input type="text" inputmode="numeric" name="monto" value="${pi.saldo?pi.saldo.toLocaleString('es-CL'):''}" onblur="AppRuta.fmtMontoInput(this)"></div>
+            <div><label>Fecha</label><input type="date" name="fecha" value="${todayStr()}"></div>
+          </div>
+          <div class="field-row"><div style="grid-column:1/-1;"><label>Nota (opcional)</label><input name="nota" placeholder="Ej: transferencia, efectivo, pago semanal"></div></div>` : `<div class="conforme" style="margin-top:10px;">✓ Este trabajo está pagado completo.</div>`}
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" onclick="AppRuta.cerrarPago()">Cerrar</button>
+            ${pi.estado!=='pagado' ? `<button type="submit" class="btn btn-primary">Registrar abono</button>` : ''}
+          </div>
+        </form>
+      </div>
+    </div>`;
+  }
+  async function guardarPagos(pid, cambios){
+    const p = byId(state.pedidos, pid); if(!p) return;
+    const inst = Object.assign({}, instDe(p), cambios);
+    p.inst = inst; render();
+    await db.doc('pedidos/'+pid).update({inst});
+  }
+
+  // ---------- cobros a clientes (valor del proyecto y abonos) ----------
+  const MEDIOS_PAGO = ['Transferencia','Efectivo','Tarjeta de débito','Tarjeta de crédito','Cheque','Otro'];
+  function abonosClienteDe(p){ return Array.isArray(instDe(p).abonosCliente) ? instDe(p).abonosCliente : []; }
+  function cobroInfo(p){
+    const i = instDe(p);
+    const valor = typeof i.valorCliente==='number' ? i.valorCliente : null;
+    const abonado = abonosClienteDe(p).reduce((a,x)=>a+(Number(x.monto)||0), 0);
+    const saldo = valor==null ? null : Math.max(0, valor - abonado);
+    const terminada = i.estado==='Terminada';
+    let estado = 'sinvalor';
+    if(valor!=null) estado = saldo<=0 ? 'pagado' : (terminada ? 'cobrar' : 'pendiente');
+    return {valor, abonado, saldo, estado, terminada};
+  }
+  function cobroBadge(ci){
+    if(ci.estado==='pagado') return `<span class="pago-badge ok">✓ Pagado</span>`;
+    if(ci.estado==='cobrar') return `<span class="pago-badge pend">⚠ Terminada · saldo ${fmtCLP(ci.saldo)}</span>`;
+    if(ci.estado==='pendiente') return `<span class="pago-badge amb">Saldo ${fmtCLP(ci.saldo)}</span>`;
+    return `<span class="pago-badge sv">Sin valor del proyecto</span>`;
+  }
+  function sumarCobros(lista){
+    return lista.reduce((a,p)=>{ const c = cobroInfo(p); if(c.valor!=null){ a.valor+=c.valor; a.saldo+=c.saldo; } a.abonado+=c.abonado; a[c.estado]=(a[c.estado]||0)+1; if(c.estado==='cobrar') a.saldoCobrar+=c.saldo; return a; },
+      {valor:0, abonado:0, saldo:0, saldoCobrar:0, pagado:0, cobrar:0, pendiente:0, sinvalor:0});
+  }
+  function filaCobro(p){
+    const i = instDe(p); const c = cobroInfo(p); const t = TIPOS_INST[i.tipo];
+    const ab = abonosClienteDe(p);
+    return `<div class="pago-row ${c.estado==='cobrar'?'pendiente':(c.estado==='pagado'?'pagado':(c.estado==='pendiente'?'amarillo':''))}">
+      <div class="pago-main">
+        <div class="pago-top"><strong>${esc(p.cliente||'')}</strong> ${cobroBadge(c)} <span class="estado-inst ${estadoInstCls(i.estado)}">${esc(i.estado||'Pendiente')}</span></div>
+        <div class="stop-meta">
+          ${fmtFechaLarga(fechaInst(p))} · ${esc(t?t.label:'Instalación')}${i.m2?(' · '+esc(i.m2)+' m²'):''} · 👷 ${esc(maestroNombre(i.maestroId)||'sin maestro')}<br>
+          📍 ${esc([p.direccionEntrega,p.comunaEntrega].filter(Boolean).join(', '))}${p.telefonoCliente?(' · <a href="'+telUrl(p.telefonoCliente)+'">☎ '+esc(p.telefonoCliente)+'</a> <a href="'+waUrl(p.telefonoCliente)+'" target="_blank">💬</a>'):''}
+          ${ab.length ? `<br><span class="ro-note" style="margin:0;">Abonos: ${ab.map(x=>`${fmtFechaLarga(x.fecha)} ${fmtCLP(Number(x.monto)||0)}${x.medio?(' ('+esc(x.medio)+')'):''}`).join(' · ')}</span>` : ''}
+        </div>
+      </div>
+      <div class="pago-nums">
+        <div><span class="k">Proyecto</span><span>${c.valor==null?'—':fmtCLP(c.valor)}</span></div>
+        <div><span class="k">Abonado</span><span class="verde">${fmtCLP(c.abonado)}</span></div>
+        <div><span class="k">Saldo</span><span class="${c.estado==='cobrar'?'rojo':(c.estado==='pendiente'?'ambar':(c.estado==='pagado'?'verde':''))}">${c.saldo==null?'—':fmtCLP(c.saldo)}</span></div>
+        <button class="btn btn-ghost btn-small" onclick="AppRuta.abrirCobro('${p.id}')">💳 Abonos</button>
+      </div>
+    </div>`;
+  }
+  function viewInstClientes(){
+    const mes = state.instMes || todayStr().slice(0,7);
+    const filtroE = state.cobroFiltro || '';
+    let lista = instalacionesVigentes().filter(p=>fechaInst(p).slice(0,7)===mes);
+    const totales = sumarCobros(lista);
+    // terminadas con saldo de CUALQUIER mes anterior (para que no se pierdan)
+    const atrasadas = instalacionesVigentes().filter(p=>fechaInst(p).slice(0,7)<mes && cobroInfo(p).estado==='cobrar');
+    if(filtroE) lista = lista.filter(p=>cobroInfo(p).estado===filtroE);
+    const orden = {cobrar:0, pendiente:1, sinvalor:2, pagado:3};
+    lista.sort((a,b)=>(orden[cobroInfo(a).estado]-orden[cobroInfo(b).estado]) || fechaInst(a).localeCompare(fechaInst(b)));
+    const [y,m] = mes.split('-').map(Number);
+    return `<div class="ruta-controls">
+        <div><label>Mes</label><div class="fecha-nav" style="margin-top:0;">
+          <button class="icon-btn" title="Mes anterior" onclick="AppRuta.instMover(-1)">◀</button>
+          <strong class="agenda-tit">${MESES_L[m-1]} ${y}</strong>
+          <button class="icon-btn" title="Mes siguiente" onclick="AppRuta.instMover(1)">▶</button>
+        </div></div>
+        <div><label>Mostrar</label><select onchange="AppRuta.cobroFiltro(this.value)">
+          <option value="" ${!filtroE?'selected':''}>Todas (${totales.pagado+totales.cobrar+totales.pendiente+totales.sinvalor})</option>
+          <option value="cobrar" ${filtroE==='cobrar'?'selected':''}>🔴 Terminadas sin pago del saldo (${totales.cobrar})</option>
+          <option value="pendiente" ${filtroE==='pendiente'?'selected':''}>🟡 Con saldo, en curso (${totales.pendiente})</option>
+          <option value="pagado" ${filtroE==='pagado'?'selected':''}>🟢 Pagadas (${totales.pagado})</option>
+          <option value="sinvalor" ${filtroE==='sinvalor'?'selected':''}>Sin valor del proyecto (${totales.sinvalor})</option>
+        </select></div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><span class="k">Total proyectos</span><span class="v">${fmtCLP(totales.valor)}</span></div>
+        <div class="kpi ok"><span class="k">Abonado</span><span class="v">${fmtCLP(totales.abonado)}</span></div>
+        <div class="kpi pend"><span class="k">Por cobrar</span><span class="v">${fmtCLP(totales.saldo)}</span></div>
+      </div>
+      ${totales.cobrar ? `<div class="banner warn">🔴 ${totales.cobrar} instalación(es) terminada(s) sin pago del saldo: ${fmtCLP(totales.saldoCobrar)} por cobrar.</div>` : ''}
+      ${atrasadas.length ? `<div class="banner warn">También hay ${atrasadas.length} instalación(es) de meses anteriores terminadas con saldo pendiente (${fmtCLP(atrasadas.reduce((a,p)=>a+cobroInfo(p).saldo,0))}). <a href="#" onclick="AppRuta.instIrMes('${fechaInst(atrasadas[0]).slice(0,7)}');return false;">Ver</a></div>` : ''}
+      ${totales.sinvalor ? `<div class="ro-note" style="margin:-4px 0 10px;">${totales.sinvalor} sin valor del proyecto: ábrelas con "💳 Abonos" para ingresarlo.</div>` : ''}
+      <div class="card">${lista.length ? lista.map(filaCobro).join('') : '<div class="empty">Sin instalaciones para este filtro.</div>'}</div>`;
+  }
+  function cobroModalHtml(p){
+    const c = cobroInfo(p);
+    const ab = abonosClienteDe(p);
+    return `<div class="modal-backdrop" onclick="if(event.target===this) AppRuta.cerrarCobro()">
+      <div class="modal" style="max-width:540px;">
+        <h3>Abonos del cliente</h3>
+        <p class="ro-note" style="margin-top:-6px;">${esc(p.cliente||'')} · ${esc(instResumen(p))} · ${pedIdLabel(p.numero)}</p>
+        <div class="kpis" style="margin:10px 0;">
+          <div class="kpi"><span class="k">Proyecto</span><span class="v">${c.valor==null?'—':fmtCLP(c.valor)}</span></div>
+          <div class="kpi ok"><span class="k">Abonado</span><span class="v">${fmtCLP(c.abonado)}</span></div>
+          <div class="kpi ${c.estado==='pagado'?'ok':'pend'}"><span class="k">Saldo</span><span class="v">${c.saldo==null?'—':fmtCLP(c.saldo)}</span></div>
+        </div>
+        <form id="form-cobro" onsubmit="return AppRuta.guardarCobro(event,'${p.id}')">
+          <div class="field-row">
+            <div><label>Valor total del proyecto ($)</label><input type="text" inputmode="numeric" name="valor" value="${c.valor==null?'':c.valor.toLocaleString('es-CL')}" onblur="AppRuta.fmtMontoInput(this)" placeholder="Lo que paga el cliente"></div>
+            <div><label>&nbsp;</label><button type="button" class="btn btn-ghost" onclick="AppRuta.guardarValorCliente('${p.id}')">Guardar valor</button></div>
+          </div>
+          ${ab.length ? `<label>Abonos registrados</label><div class="abonos">${ab.map((x,n)=>`<div class="abono"><span>${fmtFechaLarga(x.fecha)}</span><b>${fmtCLP(Number(x.monto)||0)}</b><span class="ro-note" style="margin:0;flex:1;">${esc(x.medio||'')}</span><button type="button" class="icon-btn" title="Quitar abono" onclick="AppRuta.quitarAbonoCliente('${p.id}',${n})">✕</button></div>`).join('')}</div>` : ''}
+          ${c.estado!=='pagado' ? `
+          <label style="margin-top:10px;">Registrar abono</label>
+          <div class="field-row">
+            <div><label>Monto ($)</label><input type="text" inputmode="numeric" name="monto" value="" placeholder="${c.saldo?('Saldo: '+c.saldo.toLocaleString('es-CL')):''}" onblur="AppRuta.fmtMontoInput(this)"></div>
+            <div><label>Fecha</label><input type="date" name="fecha" value="${todayStr()}"></div>
+          </div>
+          <div class="field-row">
+            <div><label>Medio de pago</label><select name="medio">${MEDIOS_PAGO.map(x=>`<option>${x}</option>`).join('')}</select></div>
+            <div><label>&nbsp;</label>${c.saldo?`<button type="button" class="btn btn-ghost" onclick="document.querySelector('#form-cobro [name=monto]').value='${c.saldo.toLocaleString('es-CL')}'">Usar saldo completo</button>`:''}</div>
+          </div>` : `<div class="conforme" style="margin-top:10px;">✓ El cliente pagó el proyecto completo.</div>`}
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" onclick="AppRuta.cerrarCobro()">Cerrar</button>
+            ${c.estado!=='pagado' ? `<button type="submit" class="btn btn-primary">Registrar abono</button>` : ''}
+          </div>
+        </form>
+      </div>
+    </div>`;
   }
 
   function viewConductores(){
@@ -2897,7 +3325,7 @@
     tab(k){ state.tab = k; state.ultimaTab = state.ultimaTab||{}; state.ultimaTab[seccionDeTab(k)] = k; render(); window.scrollTo(0,0); },
     seccion(k){
       state.ultimaTab = state.ultimaTab||{};
-      const t = k==='visitas' ? 'visitas' : (state.ultimaTab[k] || SECCIONES[k].tabs[0][0]);
+      const t = k==='visitas' ? 'visitas' : (SECCIONES[k].unica || state.ultimaTab[k] || SECCIONES[k].tabs[0][0]);
       state.tab = t; render(); window.scrollTo(0,0);
     },
     setFecha(v){ state.rutaFecha = v || todayStr(); render(); },
@@ -2938,7 +3366,12 @@
         'Fecha instalación': p.esInstalacion ? (instDe(p).fecha||'') : '',
         'Servicios': p.esInstalacion ? (instDe(p).servicios||[]).join(', ') : '',
         'Estado instalación': p.esInstalacion ? (instDe(p).estado||'Pendiente') : '',
-        'Valor instalación ($)': (p.esInstalacion && typeof instDe(p).valor==='number') ? instDe(p).valor : '',
+        'Valor proyecto cliente ($)': (p.esInstalacion && typeof instDe(p).valorCliente==='number') ? instDe(p).valorCliente : '',
+        'Abonado cliente ($)': p.esInstalacion ? cobroInfo(p).abonado : '',
+        'Saldo cliente ($)': (p.esInstalacion && cobroInfo(p).saldo!=null) ? cobroInfo(p).saldo : '',
+        'Valor pactado maestro ($)': (p.esInstalacion && typeof instDe(p).valor==='number') ? instDe(p).valor : '',
+        'Pagado al maestro ($)': p.esInstalacion ? pagoInfo(p).abonado : '',
+        'Saldo maestro ($)': (p.esInstalacion && pagoInfo(p).saldo!=null) ? pagoInfo(p).saldo : '',
         'Recepción conforme': p.esInstalacion ? (instDe(p).conformidad ? ('Sí · '+(instDe(p).conformidad.nombre||'')) : 'Pendiente') : '',
         'Encomienda': p.esEncomienda ? 'Sí' : '',
         'Transporte': p.esEncomienda ? entregaDe(p).nombre : '',
@@ -2957,7 +3390,7 @@
       ws['!cols'] = Object.keys(rows[0]).map(h=>({wch: Math.min(40, Math.max(10, h.length+2, ...rows.map(r=>String(r[h]==null?'':r[h]).length+1)))}));
       // formato pesos en la columna de monto
       const hdr = Object.keys(rows[0]);
-      [hdr.indexOf('Monto encomienda ($)'), hdr.indexOf('Valor instalación ($)')].filter(c=>c>=0).forEach(colMonto=>{
+      [hdr.indexOf('Monto encomienda ($)'), hdr.indexOf('Valor proyecto cliente ($)'), hdr.indexOf('Abonado cliente ($)'), hdr.indexOf('Saldo cliente ($)'), hdr.indexOf('Valor pactado maestro ($)'), hdr.indexOf('Pagado al maestro ($)'), hdr.indexOf('Saldo maestro ($)')].filter(c=>c>=0).forEach(colMonto=>{
         for(let r=1; r<=rows.length; r++){
           const c = ws[XLSX.utils.encode_cell({r, c:colMonto})];
           if(c && c.t==='n') c.z = '"$"#,##0';
@@ -2990,18 +3423,19 @@
         const por = {};
         insts.forEach(p=>{
           const i = instDe(p); const k = maestroNombre(i.maestroId) || '(sin maestro)';
-          const o = por[k] = por[k] || {n:0, term:0, conf:0, m2:0, valor:0};
+          const o = por[k] = por[k] || {n:0, term:0, conf:0, m2:0, valor:0, pagado:0, saldo:0};
+          const pi = pagoInfo(p); o.pagado += pi.abonado; o.saldo += pi.saldo||0;
           o.n++; if(i.estado==='Terminada') o.term++; if(i.conformidad) o.conf++;
           o.m2 += parseFloat(String(i.m2||'').replace(',','.')) || 0;
           o.valor += typeof i.valor==='number' ? i.valor : 0;
         });
-        const aoa3 = [['Resumen instalaciones '+mes], [], ['Maestro','Instalaciones','Terminadas','Con conformidad','m² total','Valor total ($)']];
-        Object.keys(por).sort().forEach(k=>{ const o = por[k]; aoa3.push([k, o.n, o.term, o.conf, Math.round(o.m2*100)/100, o.valor]); });
-        const tot = Object.values(por).reduce((a,o)=>({n:a.n+o.n, term:a.term+o.term, conf:a.conf+o.conf, m2:a.m2+o.m2, valor:a.valor+o.valor}), {n:0,term:0,conf:0,m2:0,valor:0});
-        aoa3.push(['TOTAL', tot.n, tot.term, tot.conf, Math.round(tot.m2*100)/100, tot.valor]);
+        const aoa3 = [['Resumen instalaciones '+mes], [], ['Maestro','Instalaciones','Terminadas','Con conformidad','m² total','Valor pactado ($)','Pagado al maestro ($)','Saldo por pagar ($)']];
+        Object.keys(por).sort().forEach(k=>{ const o = por[k]; aoa3.push([k, o.n, o.term, o.conf, Math.round(o.m2*100)/100, o.valor, o.pagado, o.saldo]); });
+        const tot = Object.values(por).reduce((a,o)=>({n:a.n+o.n, term:a.term+o.term, conf:a.conf+o.conf, m2:a.m2+o.m2, valor:a.valor+o.valor, pagado:a.pagado+o.pagado, saldo:a.saldo+o.saldo}), {n:0,term:0,conf:0,m2:0,valor:0,pagado:0,saldo:0});
+        aoa3.push(['TOTAL', tot.n, tot.term, tot.conf, Math.round(tot.m2*100)/100, tot.valor, tot.pagado, tot.saldo]);
         const ws3 = XLSX.utils.aoa_to_sheet(aoa3);
-        ws3['!cols'] = [{wch:26},{wch:13},{wch:12},{wch:16},{wch:10},{wch:16}];
-        for(let r=3; r<aoa3.length; r++){ const c = ws3[XLSX.utils.encode_cell({r, c:5})]; if(c) c.z = '"$"#,##0'; }
+        ws3['!cols'] = [{wch:26},{wch:13},{wch:12},{wch:16},{wch:10},{wch:16},{wch:14},{wch:18}];
+        for(let r=3; r<aoa3.length; r++){ [5,6,7].forEach(cc=>{ const c = ws3[XLSX.utils.encode_cell({r, c:cc})]; if(c) c.z = '"$"#,##0'; }); }
         XLSX.utils.book_append_sheet(wb, ws3, 'Resumen maestros');
       }
       XLSX.writeFile(wb, 'pedidos_'+mes+'.xlsx');
@@ -3278,10 +3712,91 @@
       }
       return false;
     },
+    instMover(n){ const [y,m] = (state.instMes || todayStr().slice(0,7)).split('-').map(Number); const d = new Date(y, m-1+n, 1); state.instMes = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); render(); },
+    instFiltro(k, v){ if(k==='maestro') state.instFiltroMaestro = v; else state.instFiltroEstado = v; render(); },
+    semMover(n){ state.instSemana = sumarDias(inicioSemana(state.instSemana || todayStr()), 7*n); render(); },
+    semHoy(){ state.instSemana = todayStr(); render(); },
+    cobroFiltro(v){ state.cobroFiltro = v; render(); },
+    instIrMes(m){ state.instMes = m; state.cobroFiltro = 'cobrar'; render(); window.scrollTo(0,0); },
+    abrirCobro(pid){ delete state.formDrafts['form-cobro']; state.cobroPid = pid; render(); },
+    cerrarCobro(){ delete state.formDrafts['form-cobro']; state.cobroPid = null; render(); },
+    async guardarValorCliente(pid){
+      const f = document.getElementById('form-cobro'); if(!f) return;
+      await guardarPagos(pid, {valorCliente: parseMonto(f.valor.value)});
+      delete state.formDrafts['form-cobro']; render();
+    },
+    async guardarCobro(ev, pid){
+      ev.preventDefault(); const f = ev.target;
+      const p = byId(state.pedidos, pid); if(!p) return false;
+      const cambios = {};
+      const v = parseMonto(f.valor.value);
+      if(v!==(typeof instDe(p).valorCliente==='number'?instDe(p).valorCliente:null)) cambios.valorCliente = v;
+      const monto = parseMonto(f.monto ? f.monto.value : '');
+      if(!monto){ if(Object.keys(cambios).length){ await guardarPagos(pid, cambios); delete state.formDrafts['form-cobro']; render(); } else await customAlert('Ingresa el monto del abono.'); return false; }
+      cambios.abonosCliente = abonosClienteDe(p).concat([{monto, fecha: f.fecha.value || todayStr(), medio: f.medio.value, registradoEn: new Date().toISOString()}]);
+      await guardarPagos(pid, cambios);
+      delete state.formDrafts['form-cobro']; render();
+      return false;
+    },
+    async quitarAbonoCliente(pid, n){
+      if(!await customConfirm('¿Quitar este abono del cliente?')) return;
+      const p = byId(state.pedidos, pid); if(!p) return;
+      const ab = abonosClienteDe(p).slice(); ab.splice(n,1);
+      await guardarPagos(pid, {abonosCliente: ab});
+    },
+    abrirPago(pid){ delete state.formDrafts['form-pago']; state.pagoPid = pid; render(); },
+    cerrarPago(){ delete state.formDrafts['form-pago']; state.pagoPid = null; render(); },
+    async guardarValor(pid){
+      const f = document.getElementById('form-pago'); if(!f) return;
+      const v = parseMonto(f.valor.value);
+      await guardarPagos(pid, {valor: v});
+      delete state.formDrafts['form-pago']; render();
+    },
+    async guardarPago(ev, pid){
+      ev.preventDefault(); const f = ev.target;
+      const p = byId(state.pedidos, pid); if(!p) return false;
+      const valorForm = parseMonto(f.valor.value);
+      const cambios = {};
+      if(valorForm!==(typeof instDe(p).valor==='number'?instDe(p).valor:null)) cambios.valor = valorForm;
+      const monto = parseMonto(f.monto ? f.monto.value : '');
+      if(!monto){ if(Object.keys(cambios).length){ await guardarPagos(pid, cambios); delete state.formDrafts['form-pago']; render(); } else await customAlert('Ingresa el monto del abono.'); return false; }
+      cambios.pagos = pagosDe(p).concat([{monto, fecha: f.fecha.value || todayStr(), nota: f.nota.value.trim(), registradoEn: new Date().toISOString()}]);
+      await guardarPagos(pid, cambios);
+      delete state.formDrafts['form-pago']; render();
+      return false;
+    },
+    async quitarAbono(pid, n){
+      if(!await customConfirm('¿Quitar este abono?')) return;
+      const p = byId(state.pedidos, pid); if(!p) return;
+      const pagos = pagosDe(p).slice(); pagos.splice(n,1);
+      await guardarPagos(pid, {pagos});
+    },
+    async pagarSemana(mid, ini){
+      const fin = sumarDias(ini, 6);
+      const ps = instalacionesVigentes().filter(p=>(instDe(p).maestroId||'')===mid && fechaInst(p)>=ini && fechaInst(p)<=fin && pagoInfo(p).estado==='pendiente');
+      const total = ps.reduce((a,p)=>a+pagoInfo(p).saldo, 0);
+      if(!ps.length) return;
+      if(!await customConfirm(`¿Registrar el pago de ${fmtCLP(total)} a ${maestroNombre(mid)}? Se marcan como pagados ${ps.length} trabajo(s) de esta semana.`)) return;
+      const hoy = todayStr();
+      const batch = db.batch();
+      ps.forEach(p=>{
+        const pi = pagoInfo(p);
+        const inst = Object.assign({}, instDe(p), {pagos: pagosDe(p).concat([{monto: pi.saldo, fecha: hoy, nota:'Pago semanal', registradoEn: new Date().toISOString()}])});
+        p.inst = inst;
+        batch.update(db.doc('pedidos/'+p.id), {inst});
+      });
+      render();
+      await batch.commit();
+    },
     toggleInst(chk){ aplicarModoInst(chk.form, chk.checked); },
     cambiarTipoInst(sel){ sel.form.querySelectorAll('.serv-grupo').forEach(g=>g.classList.toggle('oculto', g.dataset.tipo!==sel.value)); },
     elegirMaestro(id){ const m = byId(state.maestros,id); if(m) saveRole({type:'maestro', id:m.id, nombre:m.nombre}); },
     maeModo(m){ state.maeModo = m; render(); window.scrollTo(0,0); },
+    maeMes(n){
+      if(n===0){ state.maeMes = todayStr().slice(0,7); }
+      else { const [y,m] = (state.maeMes || todayStr().slice(0,7)).split('-').map(Number); const d = new Date(y, m-1+n, 1); state.maeMes = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+      render();
+    },
     async marcarInst(pid, estado){
       const p = byId(state.pedidos, pid); if(!p) return;
       const inst = Object.assign({}, instDe(p), {estado, actualizadoEn:new Date().toISOString()});
